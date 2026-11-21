@@ -3,6 +3,10 @@
 手工维护的 ipk feed。包体是预编译产物，不做交叉编译：下载上游官方 tarball，
 校验 sha256，裁掉运行时不需要的部分，再用 OpenWrt 生态的 `opkg-build` 打成 ipk。
 
+一个 OpenWrt 21.02（musl 1.1.24）上的 Uptime Kuma 原生运行方案：`node20` 提供
+Node 20 运行时，`uptime-kuma` 带着装好的 `node_modules` 和官方前端，`luci-app-uptime-kuma`
+是管理它们的 LuCI 外壳。设备侧零下载，`DATA_DIR` 落持久化分区。
+
 目前包含：
 
 | 包 | 上游产物 | 架构 |
@@ -267,4 +271,8 @@ feed/
 └── dist/                 # ipk 产物（gitignore）
 ```
 
-本仓库只在本地 `git init`，不推远端。
+## 许可证
+
+本仓库自身（Makefile、校验脚本、LuCI 外壳）为 MIT，见 `LICENSE`。随包的第三方
+产物保留各自许可：Node.js 20（MIT，包内 `/opt/node20/LICENSE`）、Uptime Kuma 2.5.12
+（MIT）、从 Alpine 3.12 取的 `libstdc++.so.6`（GPL-2.0 WITH GCC-exception-3.1）。
