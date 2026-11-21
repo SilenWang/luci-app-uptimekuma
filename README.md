@@ -243,14 +243,18 @@ pixi run smoke-uptime-kuma            # alpine:3.12 + node20 ipk 里真启动
 
 ## luci-app-uptime-kuma
 
-纯文本包，`Architecture: all`，不打任何编译产物。载荷六个文件：
+纯文本包，`Architecture: all`，不打任何编译产物。载荷七个文件：
 
 - `www/luci-static/resources/view/uptime-kuma/overview.js` —— 页面（启停/端口与监听地址/数据目录/日志/打开面板/备份）
 - `usr/share/luci/menu.d/luci-app-uptime-kuma.json` —— 菜单，`Services → Uptime Kuma`
-- `usr/share/rpcd/acl.d/luci-app-uptime-kuma.json` —— `service list`、`file exec`（`/sbin/logread`、init 脚本、备份脚本）、`uci` 读写
+- `usr/share/rpcd/acl.d/luci-app-uptime-kuma.json` —— `service list`、`file exec`（`/sbin/logread`、init 脚本、备份脚本、防火墙同步脚本）、`uci` 读写
 - `usr/libexec/luci-app-uptime-kuma/backup` —— 服务端备份，`data_dir` 只从 UCI 读，请求里传不进路径
+- `usr/libexec/luci-app-uptime-kuma/sync-firewall` —— Save & Apply 之后把 `firewall.uptime_kuma.dest_port` 对齐到新端口（`listen` 改成回环则删规则；规则已被删掉则不重建）
 - `usr/lib/lua/luci/i18n/luci-app-uptime-kuma.zh-cn.lmo` —— 编译好的中文目录（设备上不需要 python/po2lmo）
 - `etc/uci-defaults/90_luci-app-uptime-kuma` —— 首次安装只放行 LAN 侧一个 TCP 端口；`prerm` 删规则但**不删数据目录**
+
+防火墙规则只在安装钩子里建一次，钩子跑完就删掉了；页面改端口后由
+`sync-firewall` 重新对齐端口并 `reload` 防火墙，否则规则会一直停在旧端口。
 
 构建与校验：
 

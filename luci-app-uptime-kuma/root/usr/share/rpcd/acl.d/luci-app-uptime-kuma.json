@@ -20,7 +20,8 @@
 			},
 			"file": {
 				"/etc/init.d/uptime-kuma": [ "exec" ],
-				"/usr/libexec/luci-app-uptime-kuma/backup": [ "exec" ]
+				"/usr/libexec/luci-app-uptime-kuma/backup": [ "exec" ],
+				"/usr/libexec/luci-app-uptime-kuma/sync-firewall": [ "exec" ]
 			}
 		}
 	}

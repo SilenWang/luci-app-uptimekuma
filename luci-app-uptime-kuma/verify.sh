@@ -23,6 +23,7 @@ MENU=$pkgdir/root/usr/share/luci/menu.d/luci-app-uptime-kuma.json
 ACL=$pkgdir/root/usr/share/rpcd/acl.d/luci-app-uptime-kuma.json
 DEFAULTS=$pkgdir/root/etc/uci-defaults/90_luci-app-uptime-kuma
 BACKUP=$pkgdir/root/usr/libexec/luci-app-uptime-kuma/backup
+SYNC=$pkgdir/root/usr/libexec/luci-app-uptime-kuma/sync-firewall
 PO=$pkgdir/po/zh-cn/luci-app-uptime-kuma.zh-cn.po
 LMO=$pkgdir/root/usr/lib/lua/luci/i18n/luci-app-uptime-kuma.zh-cn.lmo
 
@@ -57,7 +58,7 @@ for mod in $(grep -o "^'require [a-z.]*'" "$VIEW" | cut -d" " -f2 | tr -d "'"); 
 done
 
 # 4. Shell payload must parse under the device's busybox ash.
-for f in "$DEFAULTS" "$BACKUP" "$pkgdir/files/postinst" "$pkgdir/files/prerm"; do
+for f in "$DEFAULTS" "$BACKUP" "$SYNC" "$pkgdir/files/postinst" "$pkgdir/files/prerm"; do
 	sh -n "$f" || fail "syntax error: $f"
 	ok "sh -n: ${f#$pkgdir/}"
 done
@@ -152,6 +153,7 @@ if (acl.write.uci.indexOf("uptime-kuma") < 0) fail("uci write not granted");
 if (acl.write.ubus.uci.indexOf("apply") < 0) fail("uci apply not granted");
 if (acl.write.file["/etc/init.d/uptime-kuma"].indexOf("exec") < 0) fail("init script exec not granted");
 if (acl.write.file["/usr/libexec/luci-app-uptime-kuma/backup"].indexOf("exec") < 0) fail("backup helper exec not granted");
+if ((acl.write.file["/usr/libexec/luci-app-uptime-kuma/sync-firewall"] || []).indexOf("exec") < 0) fail("firewall sync helper exec not granted");
 ' "$ACL" || fail 'ACL does not match the view'
 ok 'ACL scopes'
 
@@ -170,12 +172,23 @@ grep -q '/tmp' "$BACKUP" || fail 'backup helper does not guard against /tmp'
 grep -q 'uci -q get uptime-kuma' "$BACKUP" || fail 'backup helper does not read data_dir from uci'
 ok 'backup helper guards'
 
+# The firewall sync helper must follow the service port, keep a missing rule
+# missing, and drop the rule when the panel goes loopback-only.
+grep -q 'uci -q set firewall.\$NAME.dest_port="\$PORT"' "$SYNC" \
+	|| fail 'sync-firewall does not re-point dest_port'
+grep -q 'uci -q delete firewall.\$NAME' "$SYNC" \
+	|| fail 'sync-firewall does not drop the rule for a loopback listen'
+grep -q 'uci -q get firewall.\$NAME >/dev/null || exit 0' "$SYNC" \
+	|| fail 'sync-firewall would recreate a rule the operator deleted'
+ok 'firewall sync helper follows the port'
+
 for f in \
 	./www/luci-static/resources/view/uptime-kuma/overview.js \
 	./usr/share/luci/menu.d/luci-app-uptime-kuma.json \
 	./usr/share/rpcd/acl.d/luci-app-uptime-kuma.json \
 	./usr/lib/lua/luci/i18n/luci-app-uptime-kuma.zh-cn.lmo \
 	./usr/libexec/luci-app-uptime-kuma/backup \
+	./usr/libexec/luci-app-uptime-kuma/sync-firewall \
 	./etc/uci-defaults/90_luci-app-uptime-kuma
 do
 	[ -f "root/${f#./}" ] || fail "payload missing $f"
@@ -183,6 +196,7 @@ done
 ok 'payload complete'
 
 [ -x root/usr/libexec/luci-app-uptime-kuma/backup ] || fail 'backup helper not executable'
+[ -x root/usr/libexec/luci-app-uptime-kuma/sync-firewall ] || fail 'firewall sync helper not executable'
 [ -x root/etc/uci-defaults/90_luci-app-uptime-kuma ] || fail 'uci-defaults not executable'
 [ ! -d root/htdocs ] || fail 'htdocs/ leaked into the package (must install as /www)'
 ok 'payload modes and paths'

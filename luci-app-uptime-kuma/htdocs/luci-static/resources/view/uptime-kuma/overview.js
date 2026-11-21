@@ -20,6 +20,7 @@
 var INIT_SCRIPT = '/etc/init.d/uptime-kuma';
 var LOGREAD = '/sbin/logread';
 var BACKUP_HELPER = '/usr/libexec/luci-app-uptime-kuma/backup';
+var SYNC_FIREWALL = '/usr/libexec/luci-app-uptime-kuma/sync-firewall';
 
 /* keep the textarea readable: the syslog ring buffer holds ~64 KiB */
 var LOG_MAX_LINES = 400;
@@ -473,7 +474,8 @@ return view.extend({
 	/*
 	 * Save & Apply: stage the UCI changes, commit them with rollback
 	 * protection, then reload the service so the new listen address and port
-	 * actually apply.
+	 * actually apply. The LAN firewall rule is created once by the install
+	 * hook, so it is re-pointed at the new port here as well.
 	 */
 	handleSaveApply: function(ev) {
 		var self = this;
@@ -496,6 +498,11 @@ return view.extend({
 			ui.changes.setIndicator(0);
 
 			return self.runInit('reload');
+		}).then(function() {
+			return fs.exec(SYNC_FIREWALL, []).then(function(res) {
+				if (res && res.code != 0)
+					throw commandError(res);
+			});
 		}).then(function() {
 			ui.addNotification(null, E('p', {}, _('Settings applied and the service was reloaded.')), 'info');
 			return self.refreshStatus();

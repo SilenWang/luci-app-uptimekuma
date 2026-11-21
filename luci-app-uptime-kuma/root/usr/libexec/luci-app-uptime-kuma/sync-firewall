@@ -1,0 +1,42 @@
+#!/bin/sh
+# Keep the firewall rule's port in step with the service port.
+#
+#   sync-firewall
+#
+# The install hook creates the LAN rule once and is then removed, so a port
+# changed later from the LuCI page would leave the rule pointing at the old
+# port. The page runs this right after Save & Apply.
+#
+# Deliberate choices:
+#   - an existing rule is updated in place: its name and zone stay as the
+#     operator set them;
+#   - a missing rule is not recreated: the operator may have deleted it on
+#     purpose;
+#   - listen on loopback removes the rule, matching the install hook, because
+#     the panel is then not meant to be reachable from the LAN.
+
+[ -f /etc/config/firewall ] || exit 0
+
+NAME=uptime_kuma
+
+uci -q get firewall.$NAME >/dev/null || exit 0
+
+PORT=$(uci -q get uptime-kuma.main.port)
+PORT=${PORT:-3001}
+LISTEN=$(uci -q get uptime-kuma.main.listen)
+LISTEN=${LISTEN:-0.0.0.0}
+
+case "$LISTEN" in
+	127.*|::1|localhost)
+		uci -q delete firewall.$NAME
+		;;
+	*)
+		[ "$(uci -q get firewall.$NAME.dest_port)" = "$PORT" ] && exit 0
+		uci -q set firewall.$NAME.dest_port="$PORT"
+		;;
+esac
+
+uci -q commit firewall || exit 1
+/etc/init.d/firewall reload >/dev/null 2>&1
+
+exit 0

@@ -30,6 +30,7 @@ PAYLOAD := \
 	root/etc/uci-defaults/90_luci-app-uptime-kuma \
 	root/usr/lib/lua/luci/i18n/luci-app-uptime-kuma.zh-cn.lmo \
 	root/usr/libexec/luci-app-uptime-kuma/backup \
+	root/usr/libexec/luci-app-uptime-kuma/sync-firewall \
 	root/usr/share/luci/menu.d/luci-app-uptime-kuma.json \
 	root/usr/share/rpcd/acl.d/luci-app-uptime-kuma.json
 
@@ -52,6 +53,7 @@ $(IPK): $(addprefix $(CURDIR)/,$(PAYLOAD)) $(CONTROL_FILES)
 	find $(PKG_ROOT) -type f -exec chmod 0644 {} +
 	chmod 0755 $(PKG_ROOT)/etc/uci-defaults/90_luci-app-uptime-kuma
 	chmod 0755 $(PKG_ROOT)/usr/libexec/luci-app-uptime-kuma/backup
+	chmod 0755 $(PKG_ROOT)/usr/libexec/luci-app-uptime-kuma/sync-firewall
 	cp -a $(PKG_ROOT)/. $(PKG_IPK_DIR)/
 	sed -e 's|@VERSION@|$(PKG_VERSION)|g' files/control > $(PKG_IPK_DIR)/CONTROL/control
 	cp files/postinst files/prerm $(PKG_IPK_DIR)/CONTROL/
