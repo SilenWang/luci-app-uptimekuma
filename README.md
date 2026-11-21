@@ -178,8 +178,10 @@ config uptime-kuma 'main'
 	option tz 'UTC'
 ```
 
-init 脚本在 `/opt/uptime-kuma` 下用 `/opt/node20/bin/node server/server.js`
-启动（`dist/index.html` 是相对 cwd 读取的），环境变量用
+init 脚本用 `/opt/node20/bin/node server/server.js` 启动（`dist/index.html`
+是相对 cwd 读取的）。procd 21.02 **没有 `cwd` 参数**，所以命令写成
+`/bin/sh -c "cd /opt/uptime-kuma && exec /opt/node20/bin/node server/server.js"`，
+再交给 procd 管 pid；环境变量用
 `UPTIME_KUMA_HOST` / `UPTIME_KUMA_PORT` / `DATA_DIR` / `TZ`，并加
 `LD_LIBRARY_PATH=/opt/uptime-kuma/lib`。procd 负责 respawn、日志和 uci 变更
 触发的 reload。不改 `HOST`（`server/config.js` 会读系统 `HOST`）。
@@ -200,9 +202,9 @@ pixi run smoke-uptime-kuma            # alpine:3.12 + node20 ipk 里真启动
 
 2026-11-21 本 runtime 结果：
 
-- ipk：39,753,646 bytes（37.9 MiB）
-- 解包后：210,688 KiB（`du -sk`，205.8 MiB；`du -sb` 135,663,176 bytes）
-- ipk sha256：`bead7415ba4631e2902a4ddc62784506116fb244f351d187c51128e8d68d647a`
+- ipk：39,751,260 bytes（37.9 MiB）
+- 解包后：210,688 KiB（`du -sk`，205.8 MiB；`du -sb` 135,663,397 bytes）
+- ipk sha256：`657ee5739bf5b62841cd7b1e1398d6875c1e1bfc3edafe29d6cdba917c8ffcf3`
 - 干净重建两次得到同一 sha256（`SOURCE_DATE_EPOCH` 固定为 tag 的 mtime）
 - `verify.sh` 会对 `.node` 和包内 `libstdc++.so.6` 做 `readelf -d`：NEEDED 必须是
   `libc.musl-aarch64.so.1` + `libgcc_s.so.1`（+`.node` 的 `libstdc++.so.6`），

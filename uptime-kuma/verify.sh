@@ -64,6 +64,11 @@ tar xzf data.tar.gz -C root
 [ "$(stat -c %a root/etc/init.d/uptime-kuma)" = 755 ] || fail 'init script mode is not 0755'
 [ "$(stat -c %a root/etc/config/uptime-kuma)" = 644 ] || fail 'uci config mode is not 0644'
 sh -n root/etc/init.d/uptime-kuma || fail 'init script fails sh -n'
+grep -q 'cd $APP_DIR && exec $PROG server/server.js' root/etc/init.d/uptime-kuma \
+	|| fail 'init does not cd into APP_DIR before exec'
+if grep -q 'procd_set_param cwd' root/etc/init.d/uptime-kuma; then
+	fail 'procd 21.02 has no cwd parameter'
+fi
 
 grep -q '^	option enabled' root/etc/config/uptime-kuma || fail 'uci enabled option missing'
 grep -q "option listen '0.0.0.0'" root/etc/config/uptime-kuma || fail 'uci listen default wrong'
