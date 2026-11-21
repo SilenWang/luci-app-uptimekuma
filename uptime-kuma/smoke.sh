@@ -2,6 +2,8 @@
 # Boot the packaged app in Alpine 3.12 (musl 1.1.24, the device's libc) with
 # the node20 package, then check:
 #   - /api/entry-page returns {"type":"setup-database"}
+#   - the setup POST succeeds, DATA_DIR/kuma.db gets created from the packaged
+#     db/kuma.db template, and / then serves the app HTML (gate 3 end to end)
 #   - @louislam/sqlite3 dlopens and can create/read a table
 #   - stable RSS
 #
@@ -26,7 +28,7 @@ mkdir -p "$work/kuma-root" "$work/node-root"
 
 unpack_ipk() {
 	src=$1; dst=$2
-	( cd "$dst" && ar x "$src" && tar xzf data.tar.gz )
+	( cd "$dst" && tar xzf "$src" && tar xzf data.tar.gz )
 }
 
 unpack_ipk "$(cd "$(dirname "$kuma_ipk")" && pwd)/$(basename "$kuma_ipk")" "$work/kuma-root"
@@ -60,10 +62,14 @@ docker exec "$ctr" sh -c 'cd /opt/uptime-kuma && \
 		});
 	});"'
 
-docker exec -d "$ctr" sh -c 'cd /opt/uptime-kuma && \
-	NODE_ENV=production UPTIME_KUMA_HOST=0.0.0.0 UPTIME_KUMA_PORT=3001 \
-	DATA_DIR=/opt/uptime-kuma/data TZ=UTC LD_LIBRARY_PATH=/opt/uptime-kuma/lib \
-	/opt/node20/bin/node server/server.js > /tmp/uptime-kuma.log 2>&1'
+start_server() {
+	docker exec -d "$ctr" sh -c 'cd /opt/uptime-kuma && \
+		NODE_ENV=production UPTIME_KUMA_HOST=0.0.0.0 UPTIME_KUMA_PORT=3001 \
+		DATA_DIR=/opt/uptime-kuma/data TZ=UTC LD_LIBRARY_PATH=/opt/uptime-kuma/lib \
+		/opt/node20/bin/node server/server.js >> /tmp/uptime-kuma.log 2>&1'
+}
+
+start_server
 
 entry=''
 i=0
@@ -94,5 +100,55 @@ if [ -z "$rss" ]; then
 	echo "FAIL: cannot read server RSS" >&2
 	exit 1
 fi
+
+# Gate 3, second half: submit the setup form the way the browser does, then
+# the server must be able to serve the real UI from the same dist.
+echo "database setup:"
+setup=$(docker exec "$ctr" /opt/node20/bin/node -e '
+const http = require("http");
+const body = JSON.stringify({ dbConfig: { type: "sqlite" } });
+const req = http.request({
+	host: "127.0.0.1", port: 3001, path: "/setup-database", method: "POST",
+	headers: { "content-type": "application/json", "content-length": Buffer.byteLength(body) }
+}, res => {
+	let data = "";
+	res.on("data", c => data += c);
+	res.on("end", () => {
+		console.log(res.statusCode + " " + data.trim());
+		process.exit(res.statusCode === 200 ? 0 : 1);
+	});
+});
+req.on("error", e => { console.error("ERR " + e.message); process.exit(1); });
+req.end(body);' 2>&1) || {
+	docker exec "$ctr" sh -c 'tail -30 /tmp/uptime-kuma.log' >&2 || true
+	echo "FAIL: setup-database POST failed: $setup" >&2
+	exit 1
+}
+echo "setup-database: $setup"
+
+# After first-run setup uptime-kuma exits on purpose and expects its
+# supervisor (procd on the device) to start it again; do that by hand here.
+sleep 3
+start_server
+
+page=''
+i=0
+while [ "$i" -lt 180 ]; do
+	page=$(docker exec "$ctr" sh -c 'wget -qO- http://127.0.0.1:3001/ 2>/dev/null || true')
+	case "$page" in
+		*'<!DOCTYPE html>'*) break ;;
+	esac
+	i=$((i + 1))
+	sleep 1
+done
+case "$page" in
+	*'<!DOCTYPE html>'*) echo "/ serves HTML: $(printf '%s' "$page" | head -c 40)" ;;
+	*)
+		docker exec "$ctr" sh -c 'tail -40 /tmp/uptime-kuma.log' >&2 || true
+		echo "FAIL: / did not serve HTML after database setup" >&2
+		exit 1
+		;;
+esac
+docker exec "$ctr" ls -l /opt/uptime-kuma/data/kuma.db
 
 echo "SMOKE OK"

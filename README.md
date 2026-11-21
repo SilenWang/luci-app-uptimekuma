@@ -163,8 +163,13 @@ pixi run make -C uptime-kuma          # 或 pixi run build（两个包一起）
 - 前端直接用官方 release 的 `dist.tar.gz`，不在本地 vite build。
 - `server/check-version.js` 的更新检查被关闭（非 git 安装无法自更新），
   `getSettings` 返回 `checkUpdate=false`，界面上更新按钮显示为关闭。
-- 只跑本来就需要的东西：`server/`、`db/`（去掉开发用 `kuma.db`）、`dist/`、
+- 只跑本来就需要的东西：`server/`、`db/`（**含首启模板 `kuma.db`**）、`dist/`、
   `node_modules/`、`package.json`、`src/util.js`、`extra/rdap-dns.json`。
+
+`db/kuma.db` 不是开发遗留库，是 `server/database.js` 的
+`Database.templatePath = "./db/kuma.db"`，首启时 `copyFileSync` 到 `DATA_DIR`。
+删掉它，setup 表单提交后主服务立刻 `copyfile ENOENT` 退出、procd 进 crash loop。
+`Makefile` 现在有 `test -f` + SQLite 头校验，`verify.sh` 也把它列为必需文件。
 
 ### 裁剪
 
@@ -220,9 +225,9 @@ pixi run smoke-uptime-kuma            # alpine:3.12 + node20 ipk 里真启动
 
 2026-11-21 本 runtime 结果：
 
-- ipk：39,631,705 bytes（37.8 MiB）
+- ipk：39,615,297 bytes（37.8 MiB）
 - 解包后：210,688 KiB（`du -sk`，205.8 MiB；`du -sb` 135,663,397 bytes）
-- ipk sha256：`b2197eaa9c979d5d72afa6478086483e11263c5f0284a39577ab5bb3e1cff582`
+- ipk sha256：`2647e3b9535f014069b073be288dc7a90392f4399373c01d988153c082665e9e`
 - 干净重建两次得到同一 sha256（`SOURCE_DATE_EPOCH` 固定为 tag 的 mtime）
 - `verify.sh` 会对 `.node` 和包内 `libstdc++.so.6` 做 `readelf -d`：NEEDED 必须是
   `libc.musl-aarch64.so.1` + `libgcc_s.so.1`（+`.node` 的 `libstdc++.so.6`），
@@ -230,6 +235,8 @@ pixi run smoke-uptime-kuma            # alpine:3.12 + node20 ipk 里真启动
 - `alpine:3.12`（musl 1.1.24）+ 包内 `/opt/node20/bin/node`：
   - `@louislam/sqlite3` 能 `dlopen`，内存库建表/读写通过
   - `/api/entry-page` → `{"type":"setup-database"}`
+  - `POST /setup-database {"dbConfig":{"type":"sqlite"}}` → `200 {"ok":true}`，
+    重启进程后 `/` 返回 `<!DOCTYPE html>`，`DATA_DIR/kuma.db` 由包内模板生成
   - qemu-user 下 RSS 362,164 kB；同一棵树在原生 x64 node 20.20.2 下
     RSS 133,256 kB，设备侧参考值 139–157 MB。qemu 的 TCG 翻译缓存会把
     RSS 抬高约 200 MB，**RSS 的 140–170 MB 验收请在 arm64 真机/原生容器里看**。
@@ -278,7 +285,17 @@ ubus -v list file | grep -q exec && echo "file exec 已有，装三个包即可"
 （`dist/optional/rpcd-mod-file_2022-02-19-8d26a1ba-1_aarch64_cortex-a53.ipk`，
 sha256 `aecae8f2c09e12d48ee03999f3fa75b2635f909f8076ec6101a24047448bb22d`）。
 那一个文件是 OpenWrt 官方 feed 的原样产物，不是本仓库构建的；用 `opkg install`
-一次传四个文件，opkg 会用命令行上的本地包满足依赖。
+一次传多个文件，opkg 会用命令行上的本地包满足依赖。
+
+设备上还要先补 `libubus20210630`：原厂固件带的是 `libubus20210603`，官方
+`rpcd-mod-file` 声明的是 `20210630`，直接装会报 `cannot find dependency`。
+`dist/optional/libubus20210630_2021-06-30-4fc532c8-2_aarch64_cortex-a53.ipk`
+（sha256 `38cefc890aebc740c2175658d35acfd72f351a1afee1f8516d06ca718495f97e`）
+也是官方原样包，两个 soname 并存，不动现有库。装完 `/etc/init.d/rpcd restart`，
+`ubus -v list file` 里就有 `exec` 了。
+
+这两个包属于**给原厂固件补环境**，不并进本仓库的三个包，也不改设备原有库：
+不想要 `file exec` 这条路线的话，LuCI 壳的启停/日志/备份要换成别的机制。
 
 ## 目录
 

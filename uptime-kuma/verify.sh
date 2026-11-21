@@ -41,15 +41,14 @@ need opt/uptime-kuma/dist/index.html
 need opt/uptime-kuma/src/util.js
 need opt/uptime-kuma/extra/rdap-dns.json
 need opt/uptime-kuma/db/knex_init_db.js
+# The first-run SQLite template: server/database.js copies it into DATA_DIR.
+need opt/uptime-kuma/db/kuma.db
 need opt/uptime-kuma/lib/libstdc++.so.6
 need opt/uptime-kuma/node_modules/express/package.json
 need opt/uptime-kuma/node_modules/@louislam/sqlite3/lib/binding/napi-v6-linux-arm64/node_sqlite3.node
 need etc/init.d/uptime-kuma
 need etc/config/uptime-kuma
 
-if grep -qx './opt/uptime-kuma/db/kuma.db' filelist.txt; then
-	fail 'db/kuma.db (developer database) still shipped'
-fi
 if grep -q '^\./opt/uptime-kuma/server/test/' filelist.txt; then
 	fail 'server test data still shipped'
 fi
@@ -65,6 +64,9 @@ fi
 
 mkdir root
 tar xzf data.tar.gz -C root
+
+[ "$(head -c 15 root/opt/uptime-kuma/db/kuma.db)" = 'SQLite format 3' ] \
+	|| fail 'db/kuma.db is not a SQLite template'
 
 [ "$(stat -c %a root/etc/init.d/uptime-kuma)" = 755 ] || fail 'init script mode is not 0755'
 [ "$(stat -c %a root/etc/config/uptime-kuma)" = 644 ] || fail 'uci config mode is not 0644'

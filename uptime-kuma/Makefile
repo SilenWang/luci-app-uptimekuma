@@ -150,7 +150,13 @@ $(STAMP_ROOT): $(STAMP_RUNTIME) $(BUILD_DIR)/dist/index.html $(BUILD_DIR)/libstd
 	cp $(SRC_DIR)/src/util.js $(PKG_ROOT)/opt/uptime-kuma/src/util.js
 	cp $(SRC_DIR)/extra/rdap-dns.json $(PKG_ROOT)/opt/uptime-kuma/extra/rdap-dns.json
 	cp $(BUILD_DIR)/libstdc++.so.6 $(PKG_ROOT)/opt/uptime-kuma/lib/libstdc++.so.6
-	rm -f $(PKG_ROOT)/opt/uptime-kuma/db/kuma.db
+	# db/kuma.db is NOT a developer database: it is the empty SQLite template
+	# that server/database.js copies to DATA_DIR on first setup
+	# (`Database.templatePath = "./db/kuma.db"`).  Deleting it makes the service
+	# crash on `copyfile ENOENT` right after the setup form is submitted.
+	test -f $(PKG_ROOT)/opt/uptime-kuma/db/kuma.db
+	head -c 15 $(PKG_ROOT)/opt/uptime-kuma/db/kuma.db | grep -q 'SQLite format 3' \
+		|| { echo "db/kuma.db is not a SQLite database" >&2; exit 1; }
 	install -m 0644 files/uptime-kuma.config $(PKG_ROOT)/etc/config/uptime-kuma
 	install -m 0755 files/uptime-kuma.init $(PKG_ROOT)/etc/init.d/uptime-kuma
 	# A non-git install cannot self-update: never run the update checker.
