@@ -180,6 +180,9 @@ grep -q 'uci -q delete firewall.\$NAME' "$SYNC" \
 	|| fail 'sync-firewall does not drop the rule for a loopback listen'
 grep -q 'uci -q get firewall.\$NAME >/dev/null || exit 0' "$SYNC" \
 	|| fail 'sync-firewall would recreate a rule the operator deleted'
+# Granting exec in the ACL is useless if the page never calls the helper.
+grep -q "fs.exec(SYNC_FIREWALL, \[\])" "$VIEW" \
+	|| fail 'view does not run sync-firewall after Save & Apply'
 ok 'firewall sync helper follows the port'
 
 for f in \
