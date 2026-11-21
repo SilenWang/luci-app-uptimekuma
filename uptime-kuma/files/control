@@ -5,8 +5,6 @@ Section: utils
 Priority: optional
 Architecture: @ARCH@
 Installed-Size: @SIZE@
-Conffiles:
- /etc/config/uptime-kuma
 Maintainer: Silens Wong <silenseek14@gmail.com>
 Description: Uptime Kuma @VERSION@ (server, dist and node_modules)
  Self-hosted monitoring tool. The package carries the backend, the official

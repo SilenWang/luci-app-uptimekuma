@@ -15,8 +15,12 @@ cd "$tmp"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
-ar x "$abs_ipk"
-[ -f debian-binary ] || fail 'debian-binary missing (not an ar ipk?)'
+# The device opkg (1bf042dd, 2021-06-13) only reads gzip-tar ipks: an `ar`
+# outer container is rejected as "Malformed" (small packages) or crashes it
+# with SIGSEGV (large ones). Fail here rather than on the device.
+[ "$(head -c 7 "$abs_ipk")" != '!<arch>' ] || fail 'ar outer container: rebuild with opkg-build -c'
+tar xzf "$abs_ipk"
+[ -f debian-binary ] || fail 'debian-binary missing'
 [ -f control.tar.gz ] || fail 'control.tar.gz missing'
 [ -f data.tar.gz ] || fail 'data.tar.gz missing'
 

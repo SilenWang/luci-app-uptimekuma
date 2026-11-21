@@ -15,8 +15,12 @@ cd "$tmp"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
-ar x "$abs_ipk"
-[ -f debian-binary ] || fail 'debian-binary missing (not an ar ipk?)'
+# The device opkg (1bf042dd, 2021-06-13) only reads gzip-tar ipks: an `ar`
+# outer container is rejected as "Malformed" (small packages) or crashes it
+# with SIGSEGV (large ones). Fail here rather than on the device.
+[ "$(head -c 7 "$abs_ipk")" != '!<arch>' ] || fail 'ar outer container: rebuild with opkg-build -c'
+tar xzf "$abs_ipk"
+[ -f debian-binary ] || fail 'debian-binary missing'
 [ -f control.tar.gz ] || fail 'control.tar.gz missing'
 [ -f data.tar.gz ] || fail 'data.tar.gz missing'
 
@@ -26,7 +30,8 @@ grep -qx 'Package: uptime-kuma' ctl/control || fail 'Package field wrong'
 grep -qx 'Version: 2.5.12' ctl/control || fail 'Version field wrong'
 grep -qx 'Architecture: aarch64_cortex-a53' ctl/control || fail 'Architecture field wrong'
 grep -qx 'Depends: node20, libgcc1' ctl/control || fail 'Depends field wrong'
-grep -q '^ /etc/config/uptime-kuma$' ctl/control || fail 'Conffiles entry missing'
+grep -qx '/etc/config/uptime-kuma' ctl/conffiles || fail 'CONTROL/conffiles entry missing'
+if grep -q '^Conffiles:' ctl/control; then fail 'Conffiles must not live in control (opkg 0.4 rejects it)'; fi
 
 tar tzf data.tar.gz > filelist.txt
 need() { grep -qx "./$1" filelist.txt || fail "$1 missing"; }

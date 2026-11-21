@@ -57,7 +57,8 @@ $(IPK): $(addprefix $(CURDIR)/,$(PAYLOAD)) $(CONTROL_FILES)
 	cp files/postinst files/prerm $(PKG_IPK_DIR)/CONTROL/
 	chmod 0644 $(PKG_IPK_DIR)/CONTROL/control
 	chmod 0755 $(PKG_IPK_DIR)/CONTROL/postinst $(PKG_IPK_DIR)/CONTROL/prerm
-	$(OPKG_BUILD) -o root -g root $(PKG_IPK_DIR) $(DIST_DIR)
+	# `-c` = gzip-tar outer container; the device opkg cannot read `ar` ipks.
+	$(OPKG_BUILD) -c -o root -g root $(PKG_IPK_DIR) $(DIST_DIR)
 	@echo "==> $(IPK)"
 
 verify: $(IPK)

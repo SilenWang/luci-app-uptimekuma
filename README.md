@@ -50,17 +50,29 @@ pixi run make -C node20
 
 ## 打包链
 
-用 **opkg-utils 0.5.0 的 `opkg-build`**（vendored 在 `scripts/opkg-build`，默认
-`outer=ar`），不下载 21.02.7 SDK。理由：只需一个脚本，版本固定，产物是标准
-ar 格式（`debian-binary` + `control.tar.gz` + `data.tar.gz`），`opkg` 和
-`ar x` 都能直接读。
+用 **opkg-utils 0.5.0 的 `opkg-build`**（vendored 在 `scripts/opkg-build`），
+三个包一律带 **`-c`** 参数，产出 **gzip-tar 外层容器**：一个 gzip 压缩的 tar，
+成员名是 `./debian-binary`、`./control.tar.gz`、`./data.tar.gz`。
+
+这不是口味问题。设备上的 opkg 是 `1bf042dd06751b693a8544d2317e5b969d666b69
+(2021-06-13)`，它读不了 `ar` 容器：
+
+- 小包（`luci-app-uptime-kuma`）→ `pkg_init_from_file: Malformed package file`；
+- 大包（`node20`、`uptime-kuma`，38/39 MB）→ 直接 **Segmentation fault**。
+
+官方 21.02 镜像里的 ipk 同样是 gzip-tar（同一台 opkg 读 `jshn` 正常），所以
+`-c` 才是这台机器认的格式。`opkg-build` 的默认值仍是 `ar`，**不要**去掉 `-c`。
+
+`control.tar.gz` 里的 conffiles 必须是独立的 `CONTROL/conffiles` 文件（每行一个
+路径），不能写成 `control` 里的 `Conffiles:` 字段——opkg 0.4 会报
+`Failed to parse Conffiles line` 并整包装不上。
 
 ## 本次产物
 
 - 文件：`dist/node20_20.20.2_aarch64_cortex-a53.ipk`
-- ipk 大小：38,175,028 bytes（36.4 MiB）
+- ipk 大小：37,863,542 bytes（36.1 MiB）
 - 解包后：105,668,047 bytes（100.7 MiB，在 95–110 MiB 验收窗口内）
-- ipk sha256：`720e5db33fefcb8edd69587ad44421ce78f031e2f6e7c580cfedf98d31f872a4`
+- ipk sha256：`4f5cbcca8aee70c760e51b455b7202a4b2269482864564407d2e1978547745eb`
 - 上游 tarball sha256：`02d7c51f40f165e248c80d01fd26a80ab9dc726737d971edc94a65dc1c74d613`
 
 两次 `make clean && make` 得到完全相同的 ipk sha256：`SOURCE_DATE_EPOCH` 固定为上游
@@ -73,7 +85,7 @@ tarball 的 mtime（1774487510），`opkg-build` 用它给归档条目打时间�
 pixi run verify
 ```
 
-`node20/verify.sh` 会 `ar x` 解包并断言：
+`node20/verify.sh` 会先断言外层不是 `ar`（是就用 `tar xzf` 解开）并检查：
 
 - `opt/node20/bin/node` 与 `opt/node20/LICENSE` 存在
 - `opt/node20/include/`、`opt/node20/lib/node_modules/npm/`、`corepack/` 不存在
@@ -84,7 +96,8 @@ pixi run verify
 
 ```sh
 cd dist
-ar x node20_20.20.2_aarch64_cortex-a53.ipk
+tar tzf node20_20.20.2_aarch64_cortex-a53.ipk   # 会列出 ./debian-binary 等三个成员
+tar xzf node20_20.20.2_aarch64_cortex-a53.ipk
 tar tzf data.tar.gz
 tar xzf data.tar.gz -C /tmp/node20-unpack
 du -sb /tmp/node20-unpack
@@ -207,9 +220,9 @@ pixi run smoke-uptime-kuma            # alpine:3.12 + node20 ipk 里真启动
 
 2026-11-21 本 runtime 结果：
 
-- ipk：39,751,260 bytes（37.9 MiB）
+- ipk：39,631,705 bytes（37.8 MiB）
 - 解包后：210,688 KiB（`du -sk`，205.8 MiB；`du -sb` 135,663,397 bytes）
-- ipk sha256：`657ee5739bf5b62841cd7b1e1398d6875c1e1bfc3edafe29d6cdba917c8ffcf3`
+- ipk sha256：`b2197eaa9c979d5d72afa6478086483e11263c5f0284a39577ab5bb3e1cff582`
 - 干净重建两次得到同一 sha256（`SOURCE_DATE_EPOCH` 固定为 tag 的 mtime）
 - `verify.sh` 会对 `.node` 和包内 `libstdc++.so.6` 做 `readelf -d`：NEEDED 必须是
   `libc.musl-aarch64.so.1` + `libgcc_s.so.1`（+`.node` 的 `libstdc++.so.6`），
@@ -246,6 +259,26 @@ pixi run make -C luci-app-uptime-kuma          # 产出 dist/luci-app-uptime-kum
 注意：脚本里引用 UCI 一律写全 `uptime-kuma.main.<option>`（`/etc/config/uptime-kuma`
 的唯一 section 是 `config uptime-kuma 'main'`）。写成 `@service[0]` 不会报错，只会静默
 读空、退回默认值——端口/数据目录就会和页面里配的对不上。`verify.sh` 有一条守卫盯这个。
+
+### `rpcd-mod-file`：运行时依赖，不是包依赖
+
+页面的启停、日志、备份按钮都走 LuCI 的 `fs.exec` → ubus `file exec`，这个对象由
+`rpcd-mod-file` 提供。设备上 `opkg list-installed` 只有 `rpcd`、`rpcd-mod-lxc`、
+`rpcd-mod-rrdns`，`/usr/lib/rpcd/` 里也没有 `file.so`，而且设备没有任何 opkg 索引
+（distfeeds 指向的 tuna 21.02.2 路径已 404），所以把它写成 `Depends:` 会让整个包
+装不上。
+
+因此 `control` 里只声明 `Depends: luci-base`。真机上按下面这条判断要不要补装：
+
+```sh
+ubus -v list file | grep -q exec && echo "file exec 已有，装三个包即可"
+```
+
+**没有** `exec` 时，把官方 21.02.2 的 `rpcd-mod-file` 与本包的三个 ipk 一起装
+（`dist/optional/rpcd-mod-file_2022-02-19-8d26a1ba-1_aarch64_cortex-a53.ipk`，
+sha256 `aecae8f2c09e12d48ee03999f3fa75b2635f909f8076ec6101a24047448bb22d`）。
+那一个文件是 OpenWrt 官方 feed 的原样产物，不是本仓库构建的；用 `opkg install`
+一次传四个文件，opkg 会用命令行上的本地包满足依赖。
 
 ## 目录
 

@@ -100,34 +100,18 @@ import sys, tarfile, gzip
 path = sys.argv[1]
 blob = open(path, 'rb').read()
 
-if blob[:2] == b'\x1f\x8b':
-    with tarfile.open(path, 'r:gz') as t:
-        try:
-            t.extractall('.', filter='data')
-        except TypeError:  # python < 3.12
-            t.extractall('.')
-    sys.exit(0)
-
-if not blob.startswith(b'!<arch>\n'):
-    sys.exit('not an ar archive')
-
-pos = 8
-while pos + 60 <= len(blob):
-    head = blob[pos:pos + 60]
-    name = head[0:16].decode().strip()
+# The device opkg (1bf042dd, 2021-06-13) only reads gzip-tar ipks: an `ar`
+# outer container is rejected as "Malformed". Fail here rather than on the
+# device.
+if blob.startswith(b'!<arch>\n'):
+    sys.exit('ar outer container: rebuild with opkg-build -c')
+if blob[:2] != b'\x1f\x8b':
+    sys.exit('not a gzip-tar ipk: %r' % blob[:7])
+with tarfile.open(path, 'r:gz') as t:
     try:
-        size = int(head[48:58].decode().strip())
-    except ValueError:
-        sys.exit('bad ar header')
-    data = blob[pos + 60:pos + 60 + size]
-    pos += 60 + size + (size % 2)
-    if not name or name in ('/', '//'):
-        continue  # symbol table / long-name table
-    name = name.rstrip('/')
-    if '/' in name:  # BSD style "name/", GNU style may carry a suffix
-        name = name.split('/')[0]
-    with open(name, 'wb') as fh:
-        fh.write(data)
+        t.extractall('.', filter='data')
+    except TypeError:  # python < 3.12
+        t.extractall('.')
 EOF
 
 [ -f control.tar.gz ] || fail 'control.tar.gz missing'
@@ -140,7 +124,12 @@ tar xzf data.tar.gz -C root
 grep -qx 'Package: luci-app-uptime-kuma' ctl/control || fail 'wrong Package field'
 grep -qx 'Architecture: all' ctl/control || fail 'Architecture must be all'
 grep -q '^Depends: .*luci-base' ctl/control || fail 'Depends must include luci-base'
-grep -q '^Depends: .*rpcd-mod-file' ctl/control || fail 'Depends must include rpcd-mod-file'
+# rpcd-mod-file is deliberately not a dependency: this vendor firmware ships no
+# opkg feed and does not install it, so a package dependency would make the
+# install impossible. The page needs the `file exec` ubus call at runtime; on a
+# device where that is absent the official rpcd-mod-file ipk is installed
+# alongside this one (see README, "rpcd-mod-file").
+if grep -q '^Depends: .*rpcd-mod-file' ctl/control; then fail 'rpcd-mod-file must not be a hard dependency'; fi
 ok 'control fields'
 
 [ -x ctl/postinst ] || fail 'postinst is not executable'

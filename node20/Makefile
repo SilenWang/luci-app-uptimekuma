@@ -56,7 +56,10 @@ $(IPK): $(PKG_ROOT)/opt/node20/bin/node
 	    -e 's|@ARCH@|$(PKG_ARCH)|g' \
 	    files/control > $(PKG_IPK_DIR)/CONTROL/control
 	chmod 0644 $(PKG_IPK_DIR)/CONTROL/control
-	$(OPKG_BUILD) -o root -g root $(PKG_IPK_DIR) $(DIST_DIR)
+	# `-c` = gzip-tar outer container.  The device's opkg (1bf042dd, 2021-06-13)
+	# only understands that form: an `ar` ipk is rejected as "Malformed" (small
+	# packages) or crashes it with SIGSEGV (large ones).
+	$(OPKG_BUILD) -c -o root -g root $(PKG_IPK_DIR) $(DIST_DIR)
 	@echo "==> $(IPK)"
 
 verify: $(IPK)

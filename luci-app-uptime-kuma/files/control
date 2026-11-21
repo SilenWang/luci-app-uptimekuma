@@ -1,6 +1,6 @@
 Package: luci-app-uptime-kuma
 Version: @VERSION@
-Depends: luci-base, rpcd-mod-file
+Depends: luci-base
 Section: luci
 Priority: optional
 Architecture: all

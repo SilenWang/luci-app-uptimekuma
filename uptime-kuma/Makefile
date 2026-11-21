@@ -184,7 +184,13 @@ $(IPK): $(STAMP_ROOT)
 	    -e "s|@SIZE@|$$size|g" \
 	    files/control > $(PKG_IPK_DIR)/CONTROL/control
 	chmod 0644 $(PKG_IPK_DIR)/CONTROL/control
-	$(OPKG_BUILD) -o root -g root $(PKG_IPK_DIR) $(DIST_DIR)
+	# Conffiles live in CONTROL/conffiles, the OpenWrt way.  A `Conffiles:`
+	# field inside `control` is rejected by opkg 0.4 ("Failed to parse
+	# Conffiles line"), which is the opkg this device runs.
+	printf '%s\n' /etc/config/uptime-kuma > $(PKG_IPK_DIR)/CONTROL/conffiles
+	chmod 0644 $(PKG_IPK_DIR)/CONTROL/conffiles
+	# `-c` = gzip-tar outer container; the device opkg cannot read `ar` ipks.
+	$(OPKG_BUILD) -c -o root -g root $(PKG_IPK_DIR) $(DIST_DIR)
 	@echo "==> $(IPK)"
 
 verify: $(IPK)
