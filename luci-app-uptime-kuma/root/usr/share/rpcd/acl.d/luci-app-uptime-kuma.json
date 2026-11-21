@@ -1,0 +1,27 @@
+{
+	"luci-app-uptime-kuma": {
+		"description": "Grant access to the uptime-kuma service shell",
+		"read": {
+			"uci": [ "uptime-kuma" ],
+			"ubus": {
+				"service": [ "list" ],
+				"uci": [ "changes", "get" ],
+				"file": [ "exec" ]
+			},
+			"file": {
+				"/sbin/logread": [ "exec" ]
+			}
+		},
+		"write": {
+			"uci": [ "uptime-kuma" ],
+			"ubus": {
+				"uci": [ "apply", "confirm", "set" ],
+				"file": [ "exec" ]
+			},
+			"file": {
+				"/etc/init.d/uptime-kuma": [ "exec" ],
+				"/usr/libexec/luci-app-uptime-kuma/backup": [ "exec" ]
+			}
+		}
+	}
+}

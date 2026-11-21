@@ -1,0 +1,13 @@
+Package: luci-app-uptime-kuma
+Version: @VERSION@
+Depends: luci-base, rpcd-mod-file
+Section: luci
+Priority: optional
+Architecture: all
+Maintainer: Silens Wong <silenseek14@gmail.com>
+Description: LuCI shell for the uptime-kuma service
+ Start/stop/restart the local uptime-kuma service, edit its listen address,
+ port and data directory, read its log tail, open the monitoring panel in a
+ new tab and create an on-demand backup of the data directory.
+ The monitoring UI itself stays Uptime Kuma's own web app: it is never
+ embedded in LuCI (it sends X-Frame-Options: SAMEORIGIN).

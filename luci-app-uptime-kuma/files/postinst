@@ -1,0 +1,19 @@
+#!/bin/sh
+# Apply the firewall rule right after unpacking instead of waiting for the
+# next boot, then remove the hook so /etc/init.d/boot does not run it again.
+#
+# Offline installs (image builder, IPKG_INSTROOT set) skip both: there is no
+# running firewall to reload, and the hook runs on first boot as usual.
+
+[ -n "${IPKG_INSTROOT}" ] && exit 0
+
+if [ -x /etc/uci-defaults/90_luci-app-uptime-kuma ]; then
+	(. /etc/uci-defaults/90_luci-app-uptime-kuma) && rm -f /etc/uci-defaults/90_luci-app-uptime-kuma
+fi
+
+# The rule is committed by the hook; make the running firewall pick it up.
+# `reload` is a no-op when the firewall is not running yet, which is the case
+# during an offline install.
+/etc/init.d/firewall reload >/dev/null 2>&1
+
+exit 0

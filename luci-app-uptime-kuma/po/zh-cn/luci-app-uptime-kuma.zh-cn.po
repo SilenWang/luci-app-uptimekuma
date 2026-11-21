@@ -1,0 +1,144 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: luci-app-uptime-kuma\n"
+"Report-Msgid-Bugs-To: Silens Wong <silenseek14@gmail.com>\n"
+"PO-Revision-Date: 2026-11-21 15:00+0800\n"
+"Last-Translator: Silens Wong <silenseek14@gmail.com>\n"
+"Language-Team: Chinese (Simplified)\n"
+"Language: zh_CN\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "Uptime Kuma"
+msgstr "Uptime Kuma"
+
+msgid "Manages the local uptime-kuma service. The monitoring panel is a separate web app and opens in a new tab."
+msgstr "管理本机的 uptime-kuma 服务。监控面板是独立的 Web 应用，会在新标签页中打开。"
+
+msgid "Service state"
+msgstr "服务状态"
+
+msgid "Service settings"
+msgstr "服务设置"
+
+msgid "Service log"
+msgstr "服务日志"
+
+msgid "State"
+msgstr "状态"
+
+msgid "Item"
+msgstr "项目"
+
+msgid "Value"
+msgstr "值"
+
+msgid "Running"
+msgstr "运行中"
+
+msgid "Stopped"
+msgstr "已停止"
+
+msgid "Process ID"
+msgstr "进程号"
+
+msgid "Panel address"
+msgstr "面板地址"
+
+msgid "Data directory"
+msgstr "数据目录"
+
+msgid "Open panel"
+msgstr "打开面板"
+
+msgid "Start"
+msgstr "启动"
+
+msgid "Stop"
+msgstr "停止"
+
+msgid "Restart"
+msgstr "重启"
+
+msgid "Refresh"
+msgstr "刷新"
+
+msgid "Backup"
+msgstr "备份"
+
+msgid "Create backup"
+msgstr "立即备份"
+
+msgid "Please wait"
+msgstr "请稍候"
+
+msgid "Loading …"
+msgstr "载入中 …"
+
+msgid "Running %s %s …"
+msgstr "正在执行 %s %s …"
+
+msgid "Packing %s …"
+msgstr "正在打包 %s …"
+
+msgid "Unable to run \"%s\": %s"
+msgstr "无法执行「%s」：%s"
+
+msgid "The command failed with exit code %s."
+msgstr "命令执行失败，退出码 %s。"
+
+msgid "Backup written to %s"
+msgstr "备份已写入 %s"
+
+msgid "Backup failed: %s"
+msgstr "备份失败：%s"
+
+msgid "Settings applied and the service was reloaded."
+msgstr "设置已应用，服务已重新加载。"
+
+msgid "Unable to apply the settings: %s"
+msgstr "无法应用设置：%s"
+
+msgid "Unable to read the log: %s"
+msgstr "无法读取日志：%s"
+
+msgid "No log lines from this service yet."
+msgstr "该服务暂时没有日志。"
+
+msgid "Last lines the service wrote, taken from the system log through procd."
+msgstr "下面是从系统日志里筛出的该服务最近输出（由 procd 转发）。"
+
+msgid "Packs the data directory into /opt/uptime-kuma/backup-YYYYMMDD.tgz on the device. The archive is not downloaded automatically; fetch it over SSH or SCP."
+msgstr "把数据目录打包成设备上的 /opt/uptime-kuma/backup-YYYYMMDD.tgz。归档不会自动下载，请用 SSH 或 SCP 取回。"
+
+msgid "No \"uptime-kuma\" configuration found. Install the uptime-kuma package and reload this page."
+msgstr "没有找到 uptime-kuma 配置。请先安装 uptime-kuma 包，然后刷新本页。"
+
+msgid "Changes are staged in UCI and committed by \"Save & Apply\"; the service is then reloaded so a new address or port takes effect."
+msgstr "修改先保存在 UCI，点「保存并应用」后提交；随后会重新加载服务，新的地址和端口才会生效。"
+
+msgid "Listen address"
+msgstr "监听地址"
+
+msgid "Address the panel binds to. 0.0.0.0 listens on every interface, 127.0.0.1 keeps it local to the device."
+msgstr "面板绑定的地址。0.0.0.0 监听所有网卡，127.0.0.1 只允许本机访问。"
+
+msgid "Port"
+msgstr "端口"
+
+msgid "TCP port the panel listens on."
+msgstr "面板监听的 TCP 端口。"
+
+msgid "Holds the SQLite database and the monitor configuration. Keep it on persistent storage such as /opt or /mnt; /tmp lives in RAM and is lost on reboot."
+msgstr "存放 SQLite 数据库和监控配置。请放在 /opt、/mnt 这类持久存储上；/tmp 在内存里，重启即丢。"
+
+msgid "A data directory is required."
+msgstr "必须填写数据目录。"
+
+msgid "Use an absolute path."
+msgstr "请使用绝对路径。"
+
+msgid "/tmp lives in RAM and is lost on reboot. Pick a persistent directory."
+msgstr "/tmp 在内存里，重启即丢。请换一个持久目录。"

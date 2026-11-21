@@ -1,0 +1,36 @@
+#!/bin/sh
+# Create a backup archive of the uptime-kuma data directory.
+#
+#   backup
+#
+# Prints the archive path on success. Everything is derived server-side from
+# UCI: the LuCI page only triggers this script, so a crafted request cannot
+# point tar at an arbitrary directory. /tmp is refused because tmpfs does not
+# survive a reboot.
+
+DATA_DIR=$(uci -q get uptime-kuma.main.data_dir)
+DATA_DIR=${DATA_DIR:-/opt/uptime-kuma/data}
+
+case "$DATA_DIR" in
+	/tmp|/tmp/*)
+		echo "refusing to back up $DATA_DIR: /tmp is RAM and is lost on reboot" >&2
+		exit 1
+		;;
+esac
+
+if [ ! -d "$DATA_DIR" ]; then
+	echo "data directory $DATA_DIR does not exist" >&2
+	exit 1
+fi
+
+mkdir -p /opt/uptime-kuma || exit 1
+
+archive=/opt/uptime-kuma/backup-$(date +%Y%m%d).tgz
+
+if ! /bin/tar czf "$archive" -C "$(dirname "$DATA_DIR")" "$(basename "$DATA_DIR")"; then
+	rm -f "$archive"
+	echo "tar failed, partial archive removed" >&2
+	exit 1
+fi
+
+echo "$archive"

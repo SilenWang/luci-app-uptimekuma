@@ -1,0 +1,13 @@
+{
+	"admin/services/uptime-kuma": {
+		"title": "Uptime Kuma",
+		"order": 60,
+		"action": {
+			"type": "view",
+			"path": "uptime-kuma/overview"
+		},
+		"depends": {
+			"acl": [ "luci-app-uptime-kuma" ]
+		}
+	}
+}

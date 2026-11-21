@@ -1,0 +1,25 @@
+#!/bin/sh
+# Drop the LAN firewall rule this package created on install, so removing the
+# LuCI shell does not leave a port open for a service that is no longer managed
+# from here (the uptime-kuma package itself is separate and untouched).
+#
+# On upgrade the same rule is recreated by postinst, so leave it alone and
+# avoid a needless firewall reload.
+#
+# The data directory is deliberately not touched: uninstalling the LuCI shell
+# must never delete monitors or history.
+
+[ -n "${IPKG_INSTROOT}" ] && exit 0
+[ "$1" = "upgrade" ] && exit 0
+
+NAME=uptime_kuma
+
+if uci -q get firewall.$NAME >/dev/null; then
+	uci -q delete firewall.$NAME
+	uci -q commit firewall
+	/etc/init.d/firewall reload >/dev/null 2>&1
+fi
+
+rm -f /etc/uci-defaults/90_luci-app-uptime-kuma
+
+exit 0

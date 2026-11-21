@@ -3,7 +3,7 @@
 # Every package lives in its own directory with a self-contained Makefile,
 # so packages can also be built individually with `make -C node20`.
 
-PACKAGES := node20 uptime-kuma
+PACKAGES := node20 uptime-kuma luci-app-uptime-kuma
 
 .PHONY: all $(PACKAGES) clean distclean verify
 

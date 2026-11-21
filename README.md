@@ -9,6 +9,7 @@
 | --- | --- | --- |
 | `node20` | Node.js 20.20.2 `linux-arm64-musl`（unofficial-builds） | `aarch64_cortex-a53` |
 | `uptime-kuma` | Uptime Kuma 2.5.12 源码 + 官方 `dist` + 构建期装好的 `node_modules` | `aarch64_cortex-a53` |
+| `luci-app-uptime-kuma` | 无（本仓库自己写的 LuCI 外壳，纯文本） | `all` |
 
 ## 依赖管理
 
@@ -215,6 +216,32 @@ pixi run smoke-uptime-kuma            # alpine:3.12 + node20 ipk 里真启动
   - qemu-user 下 RSS 362,164 kB；同一棵树在原生 x64 node 20.20.2 下
     RSS 133,256 kB，设备侧参考值 139–157 MB。qemu 的 TCG 翻译缓存会把
     RSS 抬高约 200 MB，**RSS 的 140–170 MB 验收请在 arm64 真机/原生容器里看**。
+
+## luci-app-uptime-kuma
+
+纯文本包，`Architecture: all`，不打任何编译产物。载荷六个文件：
+
+- `www/luci-static/resources/view/uptime-kuma/overview.js` —— 页面（启停/端口与监听地址/数据目录/日志/打开面板/备份）
+- `usr/share/luci/menu.d/luci-app-uptime-kuma.json` —— 菜单，`Services → Uptime Kuma`
+- `usr/share/rpcd/acl.d/luci-app-uptime-kuma.json` —— `service list`、`file exec`（`/sbin/logread`、init 脚本、备份脚本）、`uci` 读写
+- `usr/libexec/luci-app-uptime-kuma/backup` —— 服务端备份，`data_dir` 只从 UCI 读，请求里传不进路径
+- `usr/lib/lua/luci/i18n/luci-app-uptime-kuma.zh-cn.lmo` —— 编译好的中文目录（设备上不需要 python/po2lmo）
+- `etc/uci-defaults/90_luci-app-uptime-kuma` —— 首次安装只放行 LAN 侧一个 TCP 端口；`prerm` 删规则但**不删数据目录**
+
+构建与校验：
+
+```sh
+pixi run make -C luci-app-uptime-kuma          # 产出 dist/luci-app-uptime-kuma_1.0.0_all.ipk
+./luci-app-uptime-kuma/verify.sh dist/luci-app-uptime-kuma_1.0.0_all.ipk
+```
+
+`verify.sh` 是纯静态的：JSON/`node --check`/`sh -n`、ACL 与 view 实际调用逐项对齐、
+翻译 `.po`↔`.lmo`↔msgid 一致性、载荷清单与体积。**渲染、procd 拉起、防火墙规则是否生效
+属于 Stage 3 真机验证，脚本里没有任何 mock。**
+
+注意：脚本里引用 UCI 一律写全 `uptime-kuma.main.<option>`（`/etc/config/uptime-kuma`
+的唯一 section 是 `config uptime-kuma 'main'`）。写成 `@service[0]` 不会报错，只会静默
+读空、退回默认值——端口/数据目录就会和页面里配的对不上。`verify.sh` 有一条守卫盯这个。
 
 ## 目录
 
