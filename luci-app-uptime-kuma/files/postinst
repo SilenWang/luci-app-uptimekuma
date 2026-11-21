@@ -16,4 +16,12 @@ fi
 # during an offline install.
 /etc/init.d/firewall reload >/dev/null 2>&1
 
+# LuCI builds its route table from /usr/share/luci/menu.d/*.json and rpcd reads
+# /usr/share/rpcd/acl.d/*.json once at startup. Without these two, a fresh
+# install renders "No page is registered at '/admin/services/uptime-kuma'"
+# until the box reboots -- the menu node is dropped because its acl group is
+# unknown to the current session.
+rm -f /tmp/luci-indexcache* 2>/dev/null
+[ -x /etc/init.d/rpcd ] && /etc/init.d/rpcd restart >/dev/null 2>&1
+
 exit 0

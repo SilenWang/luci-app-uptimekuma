@@ -11,7 +11,7 @@
 | 包 | 版本 | 内容 |
 | --- | --- | --- |
 | `uptime-kuma` | 2.5.12 | 服务端 + 官方 `dist` + 构建期装好的 `node_modules`，附 procd/uci/prerm |
-| `luci-app-uptime-kuma` | 1.0.1 | LuCI 外壳（纯文本，`Architecture: all`） |
+| `luci-app-uptime-kuma` | 1.0.2 | LuCI 外壳（纯文本，`Architecture: all`） |
 
 `node20` 只是本仓库用来产出运行时的打包配方，不属于发布物，Release 里不提供。
 Uptime Kuma 2.5.12 需要 Node ≥ 20.4，用官方的 arm64-musl 构建即可：

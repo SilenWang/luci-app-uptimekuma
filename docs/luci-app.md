@@ -22,6 +22,10 @@
   静默读空、退回默认值——`verify.sh` 有一条守卫盯这个。
 - ACL 漏 scope 是静默 403 而不是加载报错，所以 `verify.sh` 把 view 里实际用到的
   动作和 ACL 逐项对齐。
+- **`postinst` 会清 `/tmp/luci-indexcache*` 并重启 `rpcd`。** LuCI 的路由表来自
+  `menu.d`，而 rpcd 只在启动时读 `acl.d`；不重启它，装完包访问
+  `/admin/services/uptime-kuma` 会得到 "No page is registered"（菜单节点因为 ACL
+  组未知被丢掉），要等重启才恢复。老 session 还需要重新登录一次。
 
 ## 前置：rpcd-mod-file
 
