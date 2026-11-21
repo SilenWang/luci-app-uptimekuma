@@ -1,0 +1,11 @@
+Package: node20
+Version: @VERSION@
+Depends: libgcc1
+Section: utils
+Priority: optional
+Architecture: @ARCH@
+Maintainer: Silens Wong <silenseek14@gmail.com>
+Description: Node.js 20 runtime (prebuilt arm64 musl)
+ Node.js @VERSION@ for aarch64_cortex-a53, installed from the official
+ unofficial-builds linux-arm64-musl tarball without recompilation.
+ Headers, npm and corepack are stripped; LICENSE is kept.

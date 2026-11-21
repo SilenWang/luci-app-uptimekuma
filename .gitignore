@@ -1,0 +1,8 @@
+# Build outputs
+build/
+dist/
+*.ipk
+*.part
+
+# pixi environment (pixi.lock IS committed)
+.pixi/
