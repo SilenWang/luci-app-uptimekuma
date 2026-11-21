@@ -30,8 +30,10 @@ start_service() {
 	mkdir -p "$data_dir"
 
 	procd_open_instance
-	procd_set_param command "$PROG" server/server.js
-	procd_set_param cwd "$APP_DIR"
+	# procd 21.02 has no "cwd" parameter -- unknown keys are silently dropped,
+	# which would leave the process in "/" and break the relative "dist" path
+	# in server.js. cd in a shell, then exec so procd still owns the pid.
+	procd_set_param command /bin/sh -c "cd $APP_DIR && exec $PROG server/server.js"
 	# UPTIME_KUMA_HOST, not HOST: server/config.js also reads the system HOST.
 	procd_set_param env \
 		NODE_ENV=production \

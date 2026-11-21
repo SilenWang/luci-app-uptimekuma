@@ -79,6 +79,20 @@ grep -q 'data.checkUpdate = false; // OpenWrt: non-git install' \
 binding=root/opt/uptime-kuma/node_modules/@louislam/sqlite3/lib/binding/napi-v6-linux-arm64/node_sqlite3.node
 echo "d14ab9d2a8611fc086c2c14ad9704592db499cab84b1dddb31df89240f6f493c  $binding" \
 	| sha256sum -c - >/dev/null || fail 'sqlite3 addon is not the pinned musl prebuild'
+echo "fd9f4683f979345e58253b3d21e82c1f9af27996269c07404ed74fa2b0566d06  root/opt/uptime-kuma/lib/libstdc++.so.6" \
+	| sha256sum -c - >/dev/null || fail 'bundled libstdc++.so.6 is not the pinned Alpine 3.12 build'
+
+# The binding directory name has no "-musl"; decide by the ELF itself.
+needed=$(readelf -d "$binding" | sed -n 's/.*Shared library: \[\(.*\)\]/\1/p')
+echo "$needed" | grep -qx 'libc.musl-aarch64.so.1' || fail 'sqlite3 addon is not linked against musl'
+echo "$needed" | grep -qx 'libgcc_s.so.1' || fail 'sqlite3 addon does not need libgcc_s.so.1'
+echo "$needed" | grep -qx 'libstdc++.so.6' || fail 'sqlite3 addon does not need libstdc++.so.6'
+if echo "$needed" | grep -qx 'libc.so.6'; then
+	fail 'sqlite3 addon links glibc (libc.so.6)'
+fi
+needed_libstdcxx=$(readelf -d root/opt/uptime-kuma/lib/libstdc++.so.6 | sed -n 's/.*Shared library: \[\(.*\)\]/\1/p')
+echo "$needed_libstdcxx" | grep -qx 'libc.musl-aarch64.so.1' || fail 'bundled libstdc++ is not a musl build'
+echo "$needed_libstdcxx" | grep -qx 'libgcc_s.so.1' || fail 'bundled libstdc++ does not need libgcc_s.so.1'
 
 kb=$(du -sk root | cut -f1)
 bytes=$(du -sb root | cut -f1)
