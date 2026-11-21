@@ -140,6 +140,8 @@ pixi run make -C uptime-kuma          # 或 pixi run build（两个包一起）
   因此把 Alpine 3.12（musl 1.1.24，与设备同版）的 `libstdc++.so.6` 放进
   `/opt/uptime-kuma/lib`，init 脚本用 `LD_LIBRARY_PATH` 指过去；**不需要、
   也不写 `libstdcpp6` 依赖**。`libgcc_s.so.1` 由 `node20` 的 `libgcc1` 依赖提供。
+  冒烟容器只 `apk add libgcc`、不装 libstdc++，`.node` 加载的就是包内
+  `lib/libstdc++.so.6`，所以这条路径在 musl 1.1.24 上是实测过的。
 - 前端直接用官方 release 的 `dist.tar.gz`，不在本地 vite build。
 - `server/check-version.js` 的更新检查被关闭（非 git 安装无法自更新），
   `getSettings` 返回 `checkUpdate=false`，界面上更新按钮显示为关闭。
@@ -150,17 +152,18 @@ pixi run make -C uptime-kuma          # 或 pixi run build（两个包一起）
 
 每轮单独量 `du -sk`（解包后的 `/opt/uptime-kuma`），每轮都在 arm64 容器里冒烟：
 
-| 轮次 | 删除 | 解包后大小 |
-| --- | --- | --- |
-| 0 | 不裁 | 270.4 MiB |
-| 1 | `**/*.md` | 261.8 MiB |
-| 2 | `**/*.map` | 205.8 MiB |
-| 3 | `**/*.d.ts` | 170.5 MiB（低于 180 MiB 下限，不采用） |
-| 4 | `**/test/` | 164.8 MiB（低于 180 MiB 下限，不采用） |
+| 轮次 | 删除 | 解包后大小 | alpine:3.12 冒烟（`/api/entry-page`） |
+| --- | --- | --- | --- |
+| 0 | 不裁 | 270.4 MiB | — |
+| 1 | `**/*.md` | 261.8 MiB | `{"type":"setup-database"}` ✓ |
+| 2 | `**/*.map` | 205.8 MiB | `{"type":"setup-database"}` ✓ |
+| 3 | `**/*.d.ts` | 170.5 MiB | ✓（低于 180 MiB 下限，回退） |
+| 4 | `**/test/` | 164.8 MiB | ✓（低于 180 MiB 下限，回退） |
 
 第 2 轮已经落进 180–220 MB 验收窗口（也贴合父任务 ~207 MB 的体积预算），
 所以第 3、4 轮只做测量、不落包；再裁会让包低于下限。`*.md`/`*.map` 的冒烟
-结果与最终树一致（最终树是第 2 轮的超集裁剪）。
+结果与最终树一致（最终树是第 2 轮的超集裁剪）。四轮冒烟容器里都没有系统
+`libstdc++.so.6`，只靠包内 `lib/` 的那份。
 
 ### 服务与 uci
 
@@ -181,6 +184,13 @@ init 脚本在 `/opt/uptime-kuma` 下用 `/opt/node20/bin/node server/server.js`
 `LD_LIBRARY_PATH=/opt/uptime-kuma/lib`。procd 负责 respawn、日志和 uci 变更
 触发的 reload。不改 `HOST`（`server/config.js` 会读系统 `HOST`）。
 
+手工起服务时要带上同一个 `LD_LIBRARY_PATH`（init 已带）：
+
+```sh
+cd /opt/uptime-kuma
+LD_LIBRARY_PATH=/opt/uptime-kuma/lib /opt/node20/bin/node server/server.js
+```
+
 ### 校验与冒烟
 
 ```sh
@@ -194,6 +204,9 @@ pixi run smoke-uptime-kuma            # alpine:3.12 + node20 ipk 里真启动
 - 解包后：210,688 KiB（`du -sk`，205.8 MiB；`du -sb` 135,663,176 bytes）
 - ipk sha256：`bead7415ba4631e2902a4ddc62784506116fb244f351d187c51128e8d68d647a`
 - 干净重建两次得到同一 sha256（`SOURCE_DATE_EPOCH` 固定为 tag 的 mtime）
+- `verify.sh` 会对 `.node` 和包内 `libstdc++.so.6` 做 `readelf -d`：NEEDED 必须是
+  `libc.musl-aarch64.so.1` + `libgcc_s.so.1`（+`.node` 的 `libstdc++.so.6`），
+  不能出现 glibc 的 `libc.so.6`；两个文件的 sha256 同时固定
 - `alpine:3.12`（musl 1.1.24）+ 包内 `/opt/node20/bin/node`：
   - `@louislam/sqlite3` 能 `dlopen`，内存库建表/读写通过
   - `/api/entry-page` → `{"type":"setup-database"}`
