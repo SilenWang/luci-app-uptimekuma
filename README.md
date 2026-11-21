@@ -8,6 +8,7 @@
 | 包 | 上游产物 | 架构 |
 | --- | --- | --- |
 | `node20` | Node.js 20.20.2 `linux-arm64-musl`（unofficial-builds） | `aarch64_cortex-a53` |
+| `uptime-kuma` | Uptime Kuma 2.5.12 源码 + 官方 `dist` + 构建期装好的 `node_modules` | `aarch64_cortex-a53` |
 
 ## 依赖管理
 
@@ -24,7 +25,7 @@
 
 ```sh
 pixi install          # 只在首次需要
-pixi run build        # 等价于 make，产出 dist/node20_20.20.2_aarch64_cortex-a53.ipk
+pixi run build        # 等价于 make，产出 dist/ 下两个 ipk
 ```
 
 产物在 `dist/`（已 gitignore）。单包也可以单独构建：
@@ -102,26 +103,109 @@ node -e  -> v20.20.2 arm64
 qemu 静态二进制、rootfs、libgcc1 都按 sha256 固定在脚本里，只落在
 `build/smoke/`，不安装到系统。它们会缓存，重复跑不会重新下载。
 
-> 为什么不是 `docker run --platform linux/arm64`：当前构建 runtime 里没有可用的
-> docker daemon（`/run/docker.sock` 不是活动 socket，无 root，也没有 rootless
-> helper），所以改用 qemu-user 做同等保真的检查。在有 docker 的机器上可以直接跑：
->
-> ```sh
-> docker run --rm --platform linux/arm64 \
->   -v "$PWD/dist:/mnt" alpine:3.12 sh -c '
->     apk add --no-cache binutils libgcc >/dev/null &&
->     mkdir -p /tmp/x && cd /tmp/x && ar x /mnt/node20_20.20.2_aarch64_cortex-a53.ipk &&
->     tar xzf data.tar.gz -C / &&
->     node -v'
-> ```
->
-> 这条命令没有在本 runtime 执行过（无 docker），仅作为等价入口记录。
+> `node20` 的冒烟是在 SIL-980 阶段做的，当时这个 runtime 还没有可用的 docker
+> daemon，所以用 qemu-user + Alpine 3.12 rootfs 做等价检查。`uptime-kuma`
+> 的构建/冒烟现在直接走 `docker --platform linux/arm64`。
+
+## uptime-kuma
+
+`uptime-kuma/` 产出 `dist/uptime-kuma_2.5.12_aarch64_cortex-a53.ipk`：
+`server/` + 官方 `dist/` + 构建期装好的 `node_modules/`，装到
+`/opt/uptime-kuma`，并附带 `/etc/init.d/uptime-kuma`（procd）与
+`/etc/config/uptime-kuma`。
+
+### 构建
+
+```sh
+pixi run make -C uptime-kuma          # 或 pixi run build（两个包一起）
+```
+
+构建在 **arm64/musl 的 `node:20-alpine` 容器**里跑（本 runtime 的 bind mount
+不可用，源码与产物用 `docker cp` 进出）。输入全部按 sha256 固定：
+
+| 输入 | sha256 |
+| --- | --- |
+| GitHub tag `2.5.12` 源码 tarball | `48f32d9651081f35cd69c84bf7cf26e131a5d9b9b1549b9f84980d67e67acb5e` |
+| 官方 release `dist.tar.gz` | `8524bfbf0140de84fe14a5f3946bb322beaf7070aa51f36ebd568db1b9758472` |
+| `@louislam/sqlite3` `napi-v6-linux-arm64-musl` 预编译 addon | `d14ab9d2a8611fc086c2c14ad9704592db499cab84b1dddb31df89240f6f493c` |
+| Alpine 3.12 `libstdc++.so.6` | `fd9f4683f979345e58253b3d21e82c1f9af27996269c07404ed74fa2b0566d06` |
+
+要点：
+
+- `npm ci --omit dev`（649 包，`node_modules` 未裁剪 ~255 MB），并设置
+  `npm_config_fallback_to_build=false`：sqlite3 只允许取上游
+  `napi-v6-linux-arm64-musl` 预编译件，**回落源码编译就直接失败**（构建后还会
+  校验 addon 的 sha256 和 `build-tmp-*` 是否存在）。
+- 该 addon 的 `DT_NEEDED` 是 `libstdc++.so.6` + `libgcc_s.so.1` + `libc.musl-aarch64.so.1`。
+  因此把 Alpine 3.12（musl 1.1.24，与设备同版）的 `libstdc++.so.6` 放进
+  `/opt/uptime-kuma/lib`，init 脚本用 `LD_LIBRARY_PATH` 指过去；**不需要、
+  也不写 `libstdcpp6` 依赖**。`libgcc_s.so.1` 由 `node20` 的 `libgcc1` 依赖提供。
+- 前端直接用官方 release 的 `dist.tar.gz`，不在本地 vite build。
+- `server/check-version.js` 的更新检查被关闭（非 git 安装无法自更新），
+  `getSettings` 返回 `checkUpdate=false`，界面上更新按钮显示为关闭。
+- 只跑本来就需要的东西：`server/`、`db/`（去掉开发用 `kuma.db`）、`dist/`、
+  `node_modules/`、`package.json`、`src/util.js`、`extra/rdap-dns.json`。
+
+### 裁剪
+
+每轮单独量 `du -sk`（解包后的 `/opt/uptime-kuma`），每轮都在 arm64 容器里冒烟：
+
+| 轮次 | 删除 | 解包后大小 |
+| --- | --- | --- |
+| 0 | 不裁 | 270.4 MiB |
+| 1 | `**/*.md` | 261.8 MiB |
+| 2 | `**/*.map` | 205.8 MiB |
+| 3 | `**/*.d.ts` | 170.5 MiB（低于 180 MiB 下限，不采用） |
+| 4 | `**/test/` | 164.8 MiB（低于 180 MiB 下限，不采用） |
+
+第 2 轮已经落进 180–220 MB 验收窗口（也贴合父任务 ~207 MB 的体积预算），
+所以第 3、4 轮只做测量、不落包；再裁会让包低于下限。`*.md`/`*.map` 的冒烟
+结果与最终树一致（最终树是第 2 轮的超集裁剪）。
+
+### 服务与 uci
+
+`/etc/config/uptime-kuma` 默认值：
+
+```
+config uptime-kuma 'main'
+	option enabled '1'
+	option listen '0.0.0.0'
+	option port '3001'
+	option data_dir '/opt/uptime-kuma/data'
+	option tz 'UTC'
+```
+
+init 脚本在 `/opt/uptime-kuma` 下用 `/opt/node20/bin/node server/server.js`
+启动（`dist/index.html` 是相对 cwd 读取的），环境变量用
+`UPTIME_KUMA_HOST` / `UPTIME_KUMA_PORT` / `DATA_DIR` / `TZ`，并加
+`LD_LIBRARY_PATH=/opt/uptime-kuma/lib`。procd 负责 respawn、日志和 uci 变更
+触发的 reload。不改 `HOST`（`server/config.js` 会读系统 `HOST`）。
+
+### 校验与冒烟
+
+```sh
+pixi run make -C uptime-kuma verify   # ipk 结构/control/体积/addon 身份
+pixi run smoke-uptime-kuma            # alpine:3.12 + node20 ipk 里真启动
+```
+
+2026-11-21 本 runtime 结果：
+
+- ipk：39,753,646 bytes（37.9 MiB）
+- 解包后：210,688 KiB（`du -sk`，205.8 MiB；`du -sb` 135,663,176 bytes）
+- ipk sha256：`bead7415ba4631e2902a4ddc62784506116fb244f351d187c51128e8d68d647a`
+- 干净重建两次得到同一 sha256（`SOURCE_DATE_EPOCH` 固定为 tag 的 mtime）
+- `alpine:3.12`（musl 1.1.24）+ 包内 `/opt/node20/bin/node`：
+  - `@louislam/sqlite3` 能 `dlopen`，内存库建表/读写通过
+  - `/api/entry-page` → `{"type":"setup-database"}`
+  - qemu-user 下 RSS 362,164 kB；同一棵树在原生 x64 node 20.20.2 下
+    RSS 133,256 kB，设备侧参考值 139–157 MB。qemu 的 TCG 翻译缓存会把
+    RSS 抬高约 200 MB，**RSS 的 140–170 MB 验收请在 arm64 真机/原生容器里看**。
 
 ## 目录
 
 ```
 feed/
-├── pixi.toml            # make + binutils，任务 build/clean/distclean/verify/smoke
+├── pixi.toml            # make + binutils，任务 build/clean/verify/smoke/smoke-uptime-kuma
 ├── Makefile              # 顶层：make -> 各包
 ├── scripts/
 │   ├── opkg-build        # opkg-utils 0.5.0（ar 外层）
@@ -130,6 +214,13 @@ feed/
 │   ├── Makefile
 │   ├── files/control     # ipk 控制文件模板
 │   └── verify.sh
+├── uptime-kuma/
+│   ├── Makefile          # arm64 容器里 npm ci，装配 /opt/uptime-kuma
+│   ├── files/control
+│   ├── files/uptime-kuma.init
+│   ├── files/uptime-kuma.config
+│   ├── verify.sh
+│   └── smoke.sh          # alpine:3.12 + node20 ipk 启动冒烟
 ├── build/                # 下载缓存与装配中间目录（gitignore）
 └── dist/                 # ipk 产物（gitignore）
 ```

@@ -1,0 +1,16 @@
+Package: uptime-kuma
+Version: @VERSION@
+Depends: node20, libgcc1
+Section: utils
+Priority: optional
+Architecture: @ARCH@
+Installed-Size: @SIZE@
+Conffiles:
+ /etc/config/uptime-kuma
+Maintainer: Silens Wong <silenseek14@gmail.com>
+Description: Uptime Kuma @VERSION@ (server, dist and node_modules)
+ Self-hosted monitoring tool. The package carries the backend, the official
+ prebuilt frontend dist and a production node_modules tree, so nothing is
+ downloaded on the device.  Runs with the node20 package; the sqlite3 N-API
+ addon is the upstream linux-arm64-musl prebuild and libstdc++.so.6 is
+ bundled, so no libstdcpp6 dependency is required.

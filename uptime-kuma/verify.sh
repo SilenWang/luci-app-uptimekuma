@@ -1,0 +1,98 @@
+#!/bin/sh
+# Sanity-check one built uptime-kuma ipk: structure, control fields, payload,
+# sqlite3 addon identity, trim state and unpacked size.
+#
+# Usage: ./verify.sh <path-to.ipk>
+set -eu
+
+ipk=${1:?usage: verify.sh <path-to.ipk>}
+[ -f "$ipk" ] || { echo "no such file: $ipk" >&2; exit 1; }
+
+abs_ipk=$(cd "$(dirname "$ipk")" && pwd)/$(basename "$ipk")
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+cd "$tmp"
+
+fail() { echo "FAIL: $*" >&2; exit 1; }
+
+ar x "$abs_ipk"
+[ -f debian-binary ] || fail 'debian-binary missing (not an ar ipk?)'
+[ -f control.tar.gz ] || fail 'control.tar.gz missing'
+[ -f data.tar.gz ] || fail 'data.tar.gz missing'
+
+mkdir ctl
+tar xzf control.tar.gz -C ctl
+grep -qx 'Package: uptime-kuma' ctl/control || fail 'Package field wrong'
+grep -qx 'Version: 2.5.12' ctl/control || fail 'Version field wrong'
+grep -qx 'Architecture: aarch64_cortex-a53' ctl/control || fail 'Architecture field wrong'
+grep -qx 'Depends: node20, libgcc1' ctl/control || fail 'Depends field wrong'
+grep -q '^ /etc/config/uptime-kuma$' ctl/control || fail 'Conffiles entry missing'
+
+tar tzf data.tar.gz > filelist.txt
+need() { grep -qx "./$1" filelist.txt || fail "$1 missing"; }
+need opt/uptime-kuma/server/server.js
+need opt/uptime-kuma/package.json
+need opt/uptime-kuma/dist/index.html
+need opt/uptime-kuma/src/util.js
+need opt/uptime-kuma/extra/rdap-dns.json
+need opt/uptime-kuma/db/knex_init_db.js
+need opt/uptime-kuma/lib/libstdc++.so.6
+need opt/uptime-kuma/node_modules/express/package.json
+need opt/uptime-kuma/node_modules/@louislam/sqlite3/lib/binding/napi-v6-linux-arm64/node_sqlite3.node
+need etc/init.d/uptime-kuma
+need etc/config/uptime-kuma
+
+if grep -qx './opt/uptime-kuma/db/kuma.db' filelist.txt; then
+	fail 'db/kuma.db (developer database) still shipped'
+fi
+if grep -q '^\./opt/uptime-kuma/server/test/' filelist.txt; then
+	fail 'server test data still shipped'
+fi
+if grep -q '^\./opt/uptime-kuma/node_modules/@louislam/sqlite3/build-tmp' filelist.txt; then
+	fail 'sqlite3 source-build residue still shipped'
+fi
+if grep -q '^\./opt/uptime-kuma/.*\.md$' filelist.txt; then
+	fail '*.md trim round 1 not applied'
+fi
+if grep -q '^\./opt/uptime-kuma/.*\.map$' filelist.txt; then
+	fail '*.map trim round 2 not applied'
+fi
+
+mkdir root
+tar xzf data.tar.gz -C root
+
+[ "$(stat -c %a root/etc/init.d/uptime-kuma)" = 755 ] || fail 'init script mode is not 0755'
+[ "$(stat -c %a root/etc/config/uptime-kuma)" = 644 ] || fail 'uci config mode is not 0644'
+sh -n root/etc/init.d/uptime-kuma || fail 'init script fails sh -n'
+
+grep -q '^	option enabled' root/etc/config/uptime-kuma || fail 'uci enabled option missing'
+grep -q "option listen '0.0.0.0'" root/etc/config/uptime-kuma || fail 'uci listen default wrong'
+grep -q "option port '3001'" root/etc/config/uptime-kuma || fail 'uci port default wrong'
+grep -q "option data_dir '/opt/uptime-kuma/data'" root/etc/config/uptime-kuma || fail 'uci data_dir default wrong'
+grep -q "option tz 'UTC'" root/etc/config/uptime-kuma || fail 'uci tz default wrong'
+
+grep -q 'checkUpdate disabled: non-git install' \
+	root/opt/uptime-kuma/server/check-version.js || fail 'update checker not disabled'
+grep -q 'data.checkUpdate = false; // OpenWrt: non-git install' \
+	root/opt/uptime-kuma/server/server.js || fail 'update controls not disabled'
+
+binding=root/opt/uptime-kuma/node_modules/@louislam/sqlite3/lib/binding/napi-v6-linux-arm64/node_sqlite3.node
+echo "d14ab9d2a8611fc086c2c14ad9704592db499cab84b1dddb31df89240f6f493c  $binding" \
+	| sha256sum -c - >/dev/null || fail 'sqlite3 addon is not the pinned musl prebuild'
+
+kb=$(du -sk root | cut -f1)
+bytes=$(du -sb root | cut -f1)
+case "$kb" in
+	''|*[!0-9]*) fail 'could not measure unpacked size' ;;
+esac
+if [ "$kb" -lt 184320 ] || [ "$kb" -gt 225280 ]; then
+	fail "unpacked size outside 180-220 MiB window: $kb KiB"
+fi
+printf 'unpacked: %s KiB (du -sk), %s bytes (du -sb)\n' "$kb" "$bytes"
+
+echo "ipk:      $abs_ipk"
+echo "ipk size: $(wc -c < "$abs_ipk") bytes"
+echo "sha256:   $(sha256sum "$abs_ipk" | cut -d' ' -f1)"
+echo "control:"
+sed 's/^/  /' ctl/control
+echo "OK"
