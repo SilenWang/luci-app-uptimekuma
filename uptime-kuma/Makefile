@@ -195,6 +195,9 @@ $(IPK): $(STAMP_ROOT)
 	# Conffiles line"), which is the opkg this device runs.
 	printf '%s\n' /etc/config/uptime-kuma > $(PKG_IPK_DIR)/CONTROL/conffiles
 	chmod 0644 $(PKG_IPK_DIR)/CONTROL/conffiles
+	# Uninstall hygiene: stop the daemon and drop the procd autostart link
+	# before the payload is removed.
+	install -m 0755 files/prerm $(PKG_IPK_DIR)/CONTROL/prerm
 	# `-c` = gzip-tar outer container; the device opkg cannot read `ar` ipks.
 	$(OPKG_BUILD) -c -o root -g root $(PKG_IPK_DIR) $(DIST_DIR)
 	@echo "==> $(IPK)"

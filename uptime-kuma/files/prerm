@@ -1,0 +1,17 @@
+#!/bin/sh
+# Stop the service before the payload disappears.
+#
+# opkg does not manage /etc/rc.d links, so without this the node process keeps
+# running after `opkg remove uptime-kuma`: the binary is gone but the process
+# still holds :3001 until the next reboot. Leaving the data directory alone is
+# the point of the package, so nothing here touches /opt/uptime-kuma/data.
+
+[ -n "${IPKG_INSTROOT}" ] && exit 0
+[ "$1" = "upgrade" ] && exit 0
+
+if [ -x /etc/init.d/uptime-kuma ]; then
+	/etc/init.d/uptime-kuma stop >/dev/null 2>&1
+	/etc/init.d/uptime-kuma disable >/dev/null 2>&1
+fi
+
+exit 0
