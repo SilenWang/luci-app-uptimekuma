@@ -12,7 +12,7 @@
 
 PKG_NAME        := uptime-kuma
 PKG_VERSION     := 2.5.12
-PKG_RELEASE     := 1
+PKG_RELEASE     := 2
 PKG_ARCH        := aarch64_cortex-a53
 
 PKG_SOURCE      := uptime-kuma-$(PKG_VERSION).tar.gz

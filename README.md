@@ -10,7 +10,7 @@
 
 | 包 | 版本 | 内容 |
 | --- | --- | --- |
-| `uptime-kuma` | 2.5.12-1 | 服务端 + 官方 `dist` + 构建期装好的 `node_modules`，附 procd/uci/prerm/postinst |
+| `uptime-kuma` | 2.5.12-2 | 服务端 + 官方 `dist` + 构建期装好的 `node_modules`，附 procd/uci/prerm/postinst |
 | `luci-app-uptime-kuma` | 1.0.3 | LuCI 外壳（纯文本，`Architecture: all`）；同时支持新版 JS LuCI 与老式 Lua LuCI |
 
 `node20` 只是本仓库用来产出运行时的打包配方，不属于发布物，Release 里不提供。

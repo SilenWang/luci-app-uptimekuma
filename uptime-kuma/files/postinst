@@ -21,4 +21,13 @@ if [ ! -f /etc/config/uptime-kuma ]; then
 	uci -q commit uptime-kuma
 fi
 
+# `opkg upgrade` removes the old payload before unpacking the new one, so the
+# service is down and the /etc/rc.d links are gone afterwards. Bring it back
+# when the operator has it enabled -- otherwise every upgrade silently leaves
+# Uptime Kuma stopped until someone notices.
+if [ "$(uci -q get uptime-kuma.main.enabled)" = "1" ]; then
+	/etc/init.d/uptime-kuma enable >/dev/null 2>&1
+	/etc/init.d/uptime-kuma start >/dev/null 2>&1
+fi
+
 exit 0
