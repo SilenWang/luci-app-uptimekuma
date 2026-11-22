@@ -21,7 +21,12 @@ fi
 # install renders "No page is registered at '/admin/services/uptime-kuma'"
 # until the box reboots -- the menu node is dropped because its acl group is
 # unknown to the current session.
+# Two caches matter here: the route table (indexcache) and the compiled Lua
+# bytecode (modulecache). opkg keeps the packaged file mtimes, which can be
+# older than the cached bytecode, so ccache happily serves the previous
+# controller and the action routes 404 until both are dropped.
 rm -f /tmp/luci-indexcache* 2>/dev/null
+rm -rf /tmp/luci-modulecache 2>/dev/null
 [ -x /etc/init.d/rpcd ] && /etc/init.d/rpcd restart >/dev/null 2>&1
 
 exit 0

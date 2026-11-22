@@ -24,10 +24,6 @@ local function cfg(opt, default)
 	return (value == nil or value == "") and default or value
 end
 
-local function cfg_set(opt, value)
-	require("luci.model.uci").cursor():set("uptime-kuma", "main", opt, value)
-end
-
 function index()
 	local page = entry({"admin", "services", "uptime-kuma"},
 		template("uptime-kuma/overview"), _("Uptime Kuma"), 60)
@@ -78,41 +74,40 @@ function action_control()
 end
 
 function action_save()
-	local port = http.formvalue("port")
-	local listen = http.formvalue("listen")
-	local data_dir = http.formvalue("data_dir")
+	local port     = http.formvalue("port") or ""
+	local listen   = http.formvalue("listen") or ""
+	local data_dir = http.formvalue("data_dir") or ""
+
 	local err
+	local pnum = tonumber(port)
 
-	if port and port ~= "" then
-		local n = tonumber(port)
-		if n and n > 0 and n < 65536 and port:match("^%d+$") then
-			cfg_set("port", port)
-		else
-			err = "port"
-		end
+	if port ~= "" and (not pnum or pnum < 1 or pnum > 65535 or not port:match("^%d+$")) then
+		err = "port"
+	elseif data_dir ~= "" and not data_dir:match("^/") then
+		err = "data_dir"
+	elseif data_dir ~= "" and data_dir:match("^/tmp") then
+		err = "tmpfs"
 	end
 
-	if not err and listen and listen ~= "" then
-		cfg_set("listen", listen)
-	end
-
-	if not err and data_dir and data_dir ~= "" then
-		if not data_dir:match("^/") then
-			err = "data_dir"
-		elseif data_dir:match("^/tmp") then
-			err = "tmpfs"
-		else
-			cfg_set("data_dir", data_dir)
-		end
-	end
-
-	if not err then
-		require("luci.model.uci").cursor():commit("uptime-kuma")
-		sys.call(INIT .. " restart >/dev/null 2>&1")
-		back("?msg=saved")
-	else
+	if err then
 		back("?err=" .. http.urlencode(err))
+		return
 	end
+
+	-- One cursor for the whole write. A cursor keeps the staged changes in
+	-- process memory, so `cursor():set(...)` followed by `cursor():commit()`
+	-- on a *different* cursor commits nothing at all (and still returns
+	-- success) -- that is exactly how "Save & apply" used to lie.
+	local c = require("luci.model.uci").cursor()
+	if port ~= "" then c:set("uptime-kuma", "main", "port", port) end
+	if listen ~= "" then c:set("uptime-kuma", "main", "listen", listen) end
+	if data_dir ~= "" then c:set("uptime-kuma", "main", "data_dir", data_dir) end
+	c:commit("uptime-kuma")
+
+	sys.call(INIT .. " restart >/dev/null 2>&1")
+	-- Keep the LAN rule on the new port, same helper the JS view calls.
+	sys.call("/usr/libexec/luci-app-uptime-kuma/sync-firewall >/dev/null 2>&1")
+	back("?msg=saved")
 end
 
 function action_backup()

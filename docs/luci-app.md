@@ -33,10 +33,13 @@
   静默读空、退回默认值——`verify.sh` 有一条守卫盯这个。
 - ACL 漏 scope 是静默 403 而不是加载报错，所以 `verify.sh` 把 view 里实际用到的
   动作和 ACL 逐项对齐。
-- **`postinst` 会清 `/tmp/luci-indexcache*` 并重启 `rpcd`。** LuCI 的路由表来自
-  `menu.d`，而 rpcd 只在启动时读 `acl.d`；不重启它，装完包访问
-  `/admin/services/uptime-kuma` 会得到 "No page is registered"（菜单节点因为 ACL
-  组未知被丢掉），要等重启才恢复。老 session 还需要重新登录一次。
+- **`postinst` 会清 `/tmp/luci-indexcache*` 与 `/tmp/luci-modulecache` 并重启 `rpcd`。**
+  LuCI 有两层缓存：路由索引和编译后的 Lua 字节码。opkg 保留包内文件的 mtime，可能比
+  缓存还旧，不清 `luci-modulecache` 会继续跑上一版 controller（表现为 action 按钮 404）。
+  而 rpcd 只在启动时读 `acl.d`，不重启它，新装的页面会被 ACL 过滤成
+  "No page is registered"；老会话还需要重新登录一次。
+- **写 UCI 必须一次 cursor 到底**：`cursor():set()` 的改动留在进程内，换一个 cursor
+  再 `commit()` 等于什么都没提交、还照样返回成功。`verify.sh` 有守卫盯这个。
 
 ## 前置：rpcd-mod-file
 
@@ -48,7 +51,7 @@
 
 ```sh
 pixi run make -C luci-app-uptime-kuma
-./luci-app-uptime-kuma/verify.sh dist/luci-app-uptime-kuma_1.0.4_all.ipk
+./luci-app-uptime-kuma/verify.sh dist/luci-app-uptime-kuma_1.0.5_all.ipk
 ```
 
 `verify.sh` 是纯静态的：JSON 解析、`node --check`、`sh -n`、require 白名单、

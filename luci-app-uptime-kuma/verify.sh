@@ -208,6 +208,20 @@ grep -q '"admin/services/uptime-kuma"' root/usr/share/luci/menu.d/luci-app-uptim
 	|| fail 'menu.d does not register admin/services/uptime-kuma'
 ok 'both LuCI flavours register the same path'
 
+# One cursor per write: staging with one cursor and committing with another
+# silently saves nothing (the "Save & apply does nothing" bug).
+if grep -q 'cfg_set' root/usr/lib/lua/luci/controller/uptimekuma.lua; then
+	fail 'controller uses a per-call uci cursor; writes would never be committed'
+fi
+awk '/^function action_save/,/^end$/' root/usr/lib/lua/luci/controller/uptimekuma.lua \
+	| grep -q 'c:commit("uptime-kuma")' \
+	|| fail 'action_save does not commit through the cursor it wrote to'
+ok 'save action commits through a single uci cursor'
+
+grep -q 'luci-modulecache' "$pkgdir/files/postinst" \
+	|| fail 'postinst must drop /tmp/luci-modulecache as well as the index cache'
+ok 'postinst drops both LuCI caches'
+
 [ -x root/usr/libexec/luci-app-uptime-kuma/backup ] || fail 'backup helper not executable'
 [ -x root/usr/libexec/luci-app-uptime-kuma/sync-firewall ] || fail 'firewall sync helper not executable'
 [ -x root/etc/uci-defaults/90_luci-app-uptime-kuma ] || fail 'uci-defaults not executable'
