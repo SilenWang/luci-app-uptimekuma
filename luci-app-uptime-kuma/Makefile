@@ -6,7 +6,7 @@
 # directory and packed with the vendored opkg-build.
 
 PKG_NAME        := luci-app-uptime-kuma
-PKG_VERSION     := 1.0.2
+PKG_VERSION     := 1.0.3
 PKG_ARCH        := all
 
 PKG_ROOT        := $(CURDIR)/build/root
@@ -29,6 +29,8 @@ PAYLOAD := \
 	htdocs/luci-static/resources/view/uptime-kuma/overview.js \
 	root/etc/uci-defaults/90_luci-app-uptime-kuma \
 	root/usr/lib/lua/luci/i18n/luci-app-uptime-kuma.zh-cn.lmo \
+	root/usr/lib/lua/luci/controller/uptimekuma.lua \
+	root/usr/lib/lua/luci/view/uptime-kuma/overview.htm \
 	root/usr/libexec/luci-app-uptime-kuma/backup \
 	root/usr/libexec/luci-app-uptime-kuma/sync-firewall \
 	root/usr/share/luci/menu.d/luci-app-uptime-kuma.json \

@@ -12,6 +12,7 @@
 
 PKG_NAME        := uptime-kuma
 PKG_VERSION     := 2.5.12
+PKG_RELEASE     := 1
 PKG_ARCH        := aarch64_cortex-a53
 
 PKG_SOURCE      := uptime-kuma-$(PKG_VERSION).tar.gz
@@ -43,7 +44,7 @@ DL_DIR      := $(BUILD_DIR)/dl
 SRC_DIR     := $(BUILD_DIR)/src
 ART_DIR     := $(BUILD_DIR)/art
 DIST_DIR    := $(CURDIR)/../dist
-IPK         := $(DIST_DIR)/$(PKG_NAME)_$(PKG_VERSION)_$(PKG_ARCH).ipk
+IPK         := $(DIST_DIR)/$(PKG_NAME)_$(PKG_VERSION)-$(PKG_RELEASE)_$(PKG_ARCH).ipk
 OPKG_BUILD  := $(CURDIR)/../scripts/opkg-build
 BUILD_CTR   := uptime-kuma-build
 
@@ -185,7 +186,7 @@ $(IPK): $(STAMP_ROOT)
 	mkdir -p $(PKG_IPK_DIR)/CONTROL $(DIST_DIR)
 	cp -a $(PKG_ROOT)/. $(PKG_IPK_DIR)/
 	size=$$(du -sk $(PKG_ROOT) | cut -f1); \
-	sed -e 's|@VERSION@|$(PKG_VERSION)|g' \
+	sed -e 's|@VERSION@|$(PKG_VERSION)-$(PKG_RELEASE)|g' \
 	    -e 's|@ARCH@|$(PKG_ARCH)|g' \
 	    -e "s|@SIZE@|$$size|g" \
 	    files/control > $(PKG_IPK_DIR)/CONTROL/control
@@ -198,6 +199,7 @@ $(IPK): $(STAMP_ROOT)
 	# Uninstall hygiene: stop the daemon and drop the procd autostart link
 	# before the payload is removed.
 	install -m 0755 files/prerm $(PKG_IPK_DIR)/CONTROL/prerm
+	install -m 0755 files/postinst $(PKG_IPK_DIR)/CONTROL/postinst
 	# `-c` = gzip-tar outer container; the device opkg cannot read `ar` ipks.
 	$(OPKG_BUILD) -c -o root -g root $(PKG_IPK_DIR) $(DIST_DIR)
 	@echo "==> $(IPK)"

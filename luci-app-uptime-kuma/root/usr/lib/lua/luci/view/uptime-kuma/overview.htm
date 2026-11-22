@@ -1,0 +1,92 @@
+<%+header%>
+
+<%
+	local http = require "luci.http"
+	local upk = require("luci.controller.uptimekuma")
+	local st = upk.status()
+	local get = http.formvalue
+	local msg = get("msg")
+	local err = get("err")
+	local backup = get("backup")
+	local host = (http.getenv("HTTP_HOST") or ""):gsub(":%d+$", "")
+%>
+
+<h2 name="content"><%:Uptime Kuma%></h2>
+
+<% if err then %>
+	<div class="cbi-section-error"><%:Invalid value for%> <%=pcdata(err)%></div>
+<% elseif msg then %>
+	<div class="cbi-section-notice"><%:Action%> <%=pcdata(msg)%> <%:sent to the service%>.</div>
+<% end %>
+
+<fieldset class="cbi-section">
+	<legend><%:Service%></legend>
+	<p>
+		<%:Status%>:
+		<% if st.running then %>
+			<strong style="color:#2e7d32"><%:running%></strong>
+			<% if st.pid then %>&nbsp;(PID <%=pcdata(tostring(st.pid))%>)<% end %>
+		<% else %>
+			<strong style="color:#c62828"><%:stopped%></strong>
+		<% end %>
+	</p>
+	<p><%:Listening on%> <%=pcdata(st.listen)%>:<%=pcdata(st.port)%></p>
+	<p><%:Data directory%> <%=pcdata(st.data_dir)%></p>
+
+	<form method="post" action="<%=url('admin/services/uptime-kuma/control')%>">
+		<button type="submit" class="cbi-button cbi-button-apply" name="do" value="start"><%:Start%></button>
+		<button type="submit" class="cbi-button cbi-button-reset" name="do" value="stop"><%:Stop%></button>
+		<button type="submit" class="cbi-button cbi-button-reload" name="do" value="restart"><%:Restart%></button>
+	</form>
+</fieldset>
+
+<fieldset class="cbi-section">
+	<legend><%:Settings%></legend>
+	<form method="post" action="<%=url('admin/services/uptime-kuma/save')%>">
+		<div class="cbi-value">
+			<label class="cbi-value-title" for="listen"><%:Listen address%></label>
+			<div class="cbi-value-field">
+				<input type="text" id="listen" name="listen" value="<%=pcdata(st.listen)%>" />
+				<div class="cbi-value-description"><%:0.0.0.0 listens on every interface; 127.0.0.1 keeps it local only.%></div>
+			</div>
+		</div>
+		<div class="cbi-value">
+			<label class="cbi-value-title" for="port"><%:Port%></label>
+			<div class="cbi-value-field">
+				<input type="text" id="port" name="port" value="<%=pcdata(st.port)%>" />
+				<div class="cbi-value-description"><%:The firewall rule for the LAN follows this port.%></div>
+			</div>
+		</div>
+		<div class="cbi-value">
+			<label class="cbi-value-title" for="data_dir"><%:Data directory%></label>
+			<div class="cbi-value-field">
+				<input type="text" id="data_dir" name="data_dir" value="<%=pcdata(st.data_dir)%>" />
+				<div class="cbi-value-description"><%:Keep it on persistent storage such as /opt or /mnt; /tmp is lost on reboot.%></div>
+			</div>
+		</div>
+		<div class="cbi-page-actions">
+			<button type="submit" class="cbi-button cbi-button-save"><%:Save & apply%></button>
+		</div>
+	</form>
+</fieldset>
+
+<fieldset class="cbi-section">
+	<legend><%:Panel%></legend>
+	<p>
+		<a class="btn cbi-button cbi-button-action" target="_blank" rel="noopener noreferrer"
+		    href="http://<%=pcdata(host)%>:<%=pcdata(st.port)%>/"><%:Open Uptime Kuma%></a>
+	</p>
+	<form method="post" action="<%=url('admin/services/uptime-kuma/backup')%>">
+		<button type="submit" class="cbi-button cbi-button-action"><%:Create backup%></button>
+		<% if backup and #backup > 0 then %>
+			<span><%=pcdata(backup)%></span>
+		<% end %>
+	</form>
+</fieldset>
+
+<fieldset class="cbi-section">
+	<legend><%:Log%></legend>
+	<pre style="max-height:20em;overflow:auto"><%=pcdata(upk.logtail())%></pre>
+</fieldset>
+
+<%+footer%>

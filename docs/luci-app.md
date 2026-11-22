@@ -1,6 +1,15 @@
 # LuCI 外壳
 
-纯文本包，`Architecture: all`，`Depends: luci-base`。载荷七个文件：
+纯文本包，`Architecture: all`，`Depends: luci-base`，**同一份包同时支持两种 LuCI**：
+
+- 新版（JS）LuCI：`/usr/share/luci/menu.d` + `/www/luci-static/resources/view/...`
+- 老式（Lua）LuCI（不少厂商 21.02 固件仍是 bootstrap 主题）：`/usr/lib/lua/luci/controller/uptimekuma.lua`
+  + `/usr/lib/lua/luci/view/uptime-kuma/overview.htm`
+
+两个运行时各读自己那份，另一份忽略，互不冲突。判断固件属于哪种：`ls /www/luci-static/resources/luci.js`
+存在即 JS 版；只有 `/usr/lib/lua/luci/controller/*.lua` 且主题是 bootstrap 就是 Lua 版。
+
+载荷九个文件：
 
 | 文件 | 作用 |
 | --- | --- |
@@ -11,6 +20,8 @@
 | `usr/libexec/luci-app-uptime-kuma/sync-firewall` | `Save & Apply` 后把 `firewall.uptime_kuma.dest_port` 对齐到新端口 |
 | `usr/lib/lua/luci/i18n/luci-app-uptime-kuma.zh-cn.lmo` | 编译好的中文目录 |
 | `etc/uci-defaults/90_luci-app-uptime-kuma` | 首次安装只放行 LAN 侧一个 TCP 端口 |
+| `usr/lib/lua/luci/controller/uptimekuma.lua` | 老式 Lua LuCI 的路由注册 |
+| `usr/lib/lua/luci/view/uptime-kuma/overview.htm` | 老式 Lua LuCI 的页面模板 |
 
 ## 几个设计取舍
 
@@ -37,7 +48,7 @@
 
 ```sh
 pixi run make -C luci-app-uptime-kuma
-./luci-app-uptime-kuma/verify.sh dist/luci-app-uptime-kuma_1.0.1_all.ipk
+./luci-app-uptime-kuma/verify.sh dist/luci-app-uptime-kuma_1.0.3_all.ipk
 ```
 
 `verify.sh` 是纯静态的：JSON 解析、`node --check`、`sh -n`、require 白名单、

@@ -192,11 +192,21 @@ for f in \
 	./usr/lib/lua/luci/i18n/luci-app-uptime-kuma.zh-cn.lmo \
 	./usr/libexec/luci-app-uptime-kuma/backup \
 	./usr/libexec/luci-app-uptime-kuma/sync-firewall \
-	./etc/uci-defaults/90_luci-app-uptime-kuma
+	./etc/uci-defaults/90_luci-app-uptime-kuma \
+	./usr/lib/lua/luci/controller/uptimekuma.lua \
+	./usr/lib/lua/luci/view/uptime-kuma/overview.htm
 do
 	[ -f "root/${f#./}" ] || fail "payload missing $f"
 done
 ok 'payload complete'
+
+# Old Lua LuCI (vendor 21.02 firmwares) ignores menu.d entirely and needs a
+# controller + Lua view; those two must register the same path as menu.d.
+grep -q '{"admin", "services", "uptime-kuma"}' root/usr/lib/lua/luci/controller/uptimekuma.lua \
+	|| fail 'Lua controller does not register admin/services/uptime-kuma'
+grep -q '"admin/services/uptime-kuma"' root/usr/share/luci/menu.d/luci-app-uptime-kuma.json \
+	|| fail 'menu.d does not register admin/services/uptime-kuma'
+ok 'both LuCI flavours register the same path'
 
 [ -x root/usr/libexec/luci-app-uptime-kuma/backup ] || fail 'backup helper not executable'
 [ -x root/usr/libexec/luci-app-uptime-kuma/sync-firewall ] || fail 'firewall sync helper not executable'
