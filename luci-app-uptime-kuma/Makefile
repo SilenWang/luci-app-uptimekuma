@@ -6,7 +6,7 @@
 # directory and packed with the vendored opkg-build.
 
 PKG_NAME        := luci-app-uptime-kuma
-PKG_VERSION     := 1.0.3
+PKG_VERSION     := 1.0.4
 PKG_ARCH        := all
 
 PKG_ROOT        := $(CURDIR)/build/root

@@ -1,14 +1,43 @@
 <%+header%>
 
 <%
+	-- Self-contained on purpose: the view must not depend on the controller
+	-- module being require-able from the template environment, which differs
+	-- between LuCI builds and has already produced
+	-- "attempt to call field 'status' (a nil value)" on a vendor firmware.
 	local http = require "luci.http"
-	local upk = require("luci.controller.uptimekuma")
-	local st = upk.status()
-	local get = http.formvalue
-	local msg = get("msg")
-	local err = get("err")
-	local backup = get("backup")
-	local host = (http.getenv("HTTP_HOST") or ""):gsub(":%d+$", "")
+	local uci  = require("luci.model.uci").cursor()
+	local util = require "luci.util"
+	local sys  = require "luci.sys"
+
+	local function cfg(opt, default)
+		local v = uci:get("uptime-kuma", "main", opt)
+		return (v == nil or v == "") and default or v
+	end
+
+	local listen   = cfg("listen", "0.0.0.0")
+	local port     = cfg("port", "3001")
+	local data_dir = cfg("data_dir", "/opt/uptime-kuma/data")
+
+	local running, pid = false, nil
+	local ok, res = pcall(util.ubus, "service", "list", { name = "uptime-kuma" })
+	if ok and type(res) == "table" and type(res["uptime-kuma"]) == "table" then
+		for _, inst in pairs(res["uptime-kuma"].instances or {}) do
+			if inst.running then
+				running = true
+				pid = inst.pid
+			end
+		end
+	end
+
+	local logtail = ""
+	local oklog, out = pcall(sys.exec, "logread -e uptime-kuma 2>/dev/null | tail -n 40")
+	if oklog and type(out) == "string" then logtail = out end
+
+	local msg    = http.formvalue("msg")
+	local err    = http.formvalue("err")
+	local backup = http.formvalue("backup")
+	local host   = (http.getenv("HTTP_HOST") or ""):gsub(":%d+$", "")
 %>
 
 <h2 name="content"><%:Uptime Kuma%></h2>
@@ -23,15 +52,15 @@
 	<legend><%:Service%></legend>
 	<p>
 		<%:Status%>:
-		<% if st.running then %>
+		<% if running then %>
 			<strong style="color:#2e7d32"><%:running%></strong>
-			<% if st.pid then %>&nbsp;(PID <%=pcdata(tostring(st.pid))%>)<% end %>
+			<% if pid then %>&nbsp;(PID <%=pcdata(tostring(pid))%>)<% end %>
 		<% else %>
 			<strong style="color:#c62828"><%:stopped%></strong>
 		<% end %>
 	</p>
-	<p><%:Listening on%> <%=pcdata(st.listen)%>:<%=pcdata(st.port)%></p>
-	<p><%:Data directory%> <%=pcdata(st.data_dir)%></p>
+	<p><%:Listening on%> <%=pcdata(listen)%>:<%=pcdata(port)%></p>
+	<p><%:Data directory%> <%=pcdata(data_dir)%></p>
 
 	<form method="post" action="<%=url('admin/services/uptime-kuma/control')%>">
 		<button type="submit" class="cbi-button cbi-button-apply" name="do" value="start"><%:Start%></button>
@@ -46,21 +75,21 @@
 		<div class="cbi-value">
 			<label class="cbi-value-title" for="listen"><%:Listen address%></label>
 			<div class="cbi-value-field">
-				<input type="text" id="listen" name="listen" value="<%=pcdata(st.listen)%>" />
+				<input type="text" id="listen" name="listen" value="<%=pcdata(listen)%>" />
 				<div class="cbi-value-description"><%:0.0.0.0 listens on every interface; 127.0.0.1 keeps it local only.%></div>
 			</div>
 		</div>
 		<div class="cbi-value">
 			<label class="cbi-value-title" for="port"><%:Port%></label>
 			<div class="cbi-value-field">
-				<input type="text" id="port" name="port" value="<%=pcdata(st.port)%>" />
+				<input type="text" id="port" name="port" value="<%=pcdata(port)%>" />
 				<div class="cbi-value-description"><%:The firewall rule for the LAN follows this port.%></div>
 			</div>
 		</div>
 		<div class="cbi-value">
 			<label class="cbi-value-title" for="data_dir"><%:Data directory%></label>
 			<div class="cbi-value-field">
-				<input type="text" id="data_dir" name="data_dir" value="<%=pcdata(st.data_dir)%>" />
+				<input type="text" id="data_dir" name="data_dir" value="<%=pcdata(data_dir)%>" />
 				<div class="cbi-value-description"><%:Keep it on persistent storage such as /opt or /mnt; /tmp is lost on reboot.%></div>
 			</div>
 		</div>
@@ -74,7 +103,7 @@
 	<legend><%:Panel%></legend>
 	<p>
 		<a class="btn cbi-button cbi-button-action" target="_blank" rel="noopener noreferrer"
-		    href="http://<%=pcdata(host)%>:<%=pcdata(st.port)%>/"><%:Open Uptime Kuma%></a>
+		    href="http://<%=pcdata(host)%>:<%=pcdata(port)%>/"><%:Open Uptime Kuma%></a>
 	</p>
 	<form method="post" action="<%=url('admin/services/uptime-kuma/backup')%>">
 		<button type="submit" class="cbi-button cbi-button-action"><%:Create backup%></button>
@@ -86,7 +115,7 @@
 
 <fieldset class="cbi-section">
 	<legend><%:Log%></legend>
-	<pre style="max-height:20em;overflow:auto"><%=pcdata(upk.logtail())%></pre>
+	<pre style="max-height:20em;overflow:auto"><%=pcdata(logtail)%></pre>
 </fieldset>
 
 <%+footer%>

@@ -48,7 +48,7 @@
 
 ```sh
 pixi run make -C luci-app-uptime-kuma
-./luci-app-uptime-kuma/verify.sh dist/luci-app-uptime-kuma_1.0.3_all.ipk
+./luci-app-uptime-kuma/verify.sh dist/luci-app-uptime-kuma_1.0.4_all.ipk
 ```
 
 `verify.sh` 是纯静态的：JSON 解析、`node --check`、`sh -n`、require 白名单、
